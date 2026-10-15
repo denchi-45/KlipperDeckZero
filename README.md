@@ -2,7 +2,7 @@
 
 M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面とキーボードから 3D プリンターを操作するための LVGL アプリです。
 
-> 🚧 開発初期段階です。現在は技術調査と設計を進めています。
+> 🚧 開発中です。第1段階(通信層 + 状態表示)まで実装済みです。
 
 ## できるようにしたいこと
 
@@ -18,9 +18,23 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
   - 実機: Unix ソケット(`~/printer_data/comms/moonraker.sock`)
   - デスクトップシミュレーター: WebSocket(`ws://<printer-ip>:7125/websocket`)
 
+## 画面と操作
+
+| 状態表示(ライト) | 状態表示(ダーク) | 接続待ち |
+|---|---|---|
+| ![](docs/images/status-printing-light.png) | ![](docs/images/status-printing-dark.png) | ![](docs/images/status-connecting.png) |
+
+| キー | 動作 |
+|---|---|
+| `4` | 状態表示(ホーム)。ホームで長押し or `ESC` 長押しで終了 |
+| `5` / `6` / `7` / `8` | 温度 / 押し出し / ファイル / 印刷制御(第2段階で実装) |
+| `ESC` | ホームへ戻る |
+| `D` | ライト / ダーク切替 |
+| `Fn`+`H` / `Fn`+`J` | ヘルプ / スクリーンショット |
+
 ## ロードマップ
 
-1. Moonraker 通信層 + 状態表示画面
+1. ✅ Moonraker 通信層 + 状態表示画面
 2. 温度設定、押し出し/引き戻し、ファイル選択、印刷制御の画面
 
 ## ビルド

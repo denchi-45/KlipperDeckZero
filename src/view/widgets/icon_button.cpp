@@ -114,6 +114,12 @@ void IconButton::set_enabled(bool enabled) {
     apply_theme(view_model_.is_dark_mode());
 }
 
+void IconButton::set_colors(lv_color_t light_color, lv_color_t dark_color) {
+    light_color_ = light_color;
+    dark_color_ = dark_color;
+    apply_theme(view_model_.is_dark_mode());
+}
+
 void IconButton::theme_observer_cb(lv_observer_t* observer, lv_subject_t* subject) {
     auto* button = static_cast<IconButton*>(lv_observer_get_user_data(observer));
     if (!button) {

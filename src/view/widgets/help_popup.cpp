@@ -21,18 +21,17 @@ struct HelpRow {
     const char* action;
 };
 
-constexpr std::array<HelpRow, 5> kAppleRows = {{
+constexpr std::array<HelpRow, 4> kHomeRows = {{
     {"HOLD ESC / 4", "Exit"},
-    {"5", "Text weight"},
-    {"6", "Light / dark"},
-    {"7", "Version info"},
-    {"8", "Open counter"},
+    {"5 / 6", "Temperature / Extruder"},
+    {"7 / 8", "Files / Print control"},
+    {"D", "Light / dark theme"},
 }};
 
-constexpr std::array<HelpRow, 3> kButterRows = {{
-    {"ESC", "Back to home"},
-    {"Z / LEFT", "Decrease"},
-    {"C / RIGHT", "Increase"},
+constexpr std::array<HelpRow, 3> kPageRows = {{
+    {"ESC", "Back to status"},
+    {"4 - 8", "Switch page"},
+    {"D", "Light / dark theme"},
 }};
 
 } // namespace
@@ -156,16 +155,16 @@ bool HelpPopup::visible() const {
 }
 
 void HelpPopup::update_rows(model::AppPage page) {
-    const bool butter = page == model::AppPage::Butter;
-    lv_label_set_text(page_badge_, butter ? "COUNTER" : "HOME");
+    const bool home = page == model::AppPage::Status;
+    lv_label_set_text(page_badge_, model::page_title(page));
     for (std::size_t i = 0; i < rows_.size(); ++i) {
-        const bool row_visible = butter ? i < kButterRows.size() : i < kAppleRows.size();
+        const bool row_visible = home ? i < kHomeRows.size() : i < kPageRows.size();
         if (!row_visible) {
             lv_obj_add_flag(rows_[i].row, LV_OBJ_FLAG_HIDDEN);
             continue;
         }
         lv_obj_remove_flag(rows_[i].row, LV_OBJ_FLAG_HIDDEN);
-        const auto& row = butter ? kButterRows[i] : kAppleRows[i];
+        const auto& row = home ? kHomeRows[i] : kPageRows[i];
         lv_label_set_text(rows_[i].key, row.key);
         lv_label_set_text(rows_[i].action, row.action);
     }

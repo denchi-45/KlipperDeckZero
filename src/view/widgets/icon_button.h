@@ -34,6 +34,7 @@ public:
     void set_text(const char* text);
     void set_font(const lv_font_t* font);
     void set_enabled(bool enabled);
+    void set_colors(lv_color_t light_color, lv_color_t dark_color);
 
 private:
     static void theme_observer_cb(lv_observer_t* observer, lv_subject_t* subject);

@@ -6,29 +6,35 @@
 
 #pragma once
 
+#include <cstddef>
+
 namespace model {
 
+// One page per navigation key (4..8). Status is the home page.
 enum class AppPage {
-    Apple  = 0,
-    Butter = 1,
+    Status      = 0,
+    Temperature = 1,
+    Extruder    = 2,
+    Files       = 3,
+    Control     = 4,
 };
+
+constexpr std::size_t kAppPageCount = 5;
+
+const char* page_title(AppPage page);
 
 class BaseModel {
 public:
-    const char* app_title() const;
-    const char* greeting() const;
-
     bool dark_mode() const;
     void set_dark_mode(bool enabled);
     void toggle_dark_mode();
 
     AppPage current_page() const;
     void set_current_page(AppPage page);
-    void toggle_page();
 
 private:
     bool dark_mode_ = false;
-    AppPage current_page_ = AppPage::Apple;
+    AppPage current_page_ = AppPage::Status;
 };
 
 } // namespace model
