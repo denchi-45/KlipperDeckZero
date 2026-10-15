@@ -1,0 +1,18 @@
+# Build outputs
+build/
+out/
+.cache/
+cmake-build-*/
+CMakeUserPresets.json
+compile_commands.json
+
+# vcpkg
+vcpkg_installed/
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
