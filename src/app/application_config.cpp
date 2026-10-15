@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -59,6 +60,17 @@ bool is_key(const std::string& line, const std::string& expected) {
 
 } // namespace
 
+std::string expand_user_path(const std::string& path) {
+    if (path.size() < 2 || path[0] != '~' || (path[1] != '/' && path[1] != '\\')) {
+        return path;
+    }
+    const char* home = std::getenv("HOME");
+    if (!home || !*home) {
+        return path;
+    }
+    return std::string(home) + path.substr(1);
+}
+
 bool load_application_config(const std::string& path,
                              ApplicationConfig& config,
                              std::string& error) {
@@ -90,10 +102,36 @@ bool load_application_config(const std::string& path,
         }
 
         const auto key = lowercase(trim(line.substr(0, separator)));
+        const auto value = trim(line.substr(separator + 1));
         if (section == "application" && key == "dark_mode") {
-            if (!parse_bool(line.substr(separator + 1), config.dark_mode)) {
+            if (!parse_bool(value, config.dark_mode)) {
                 error = "invalid dark_mode value at line " + std::to_string(line_number);
                 return false;
+            }
+        }
+        else if (section == "moonraker") {
+            if (key == "transport") {
+                const auto normalized = lowercase(value);
+                if (normalized == "unix") {
+                    config.moonraker.transport = MoonrakerTransportKind::UnixSocket;
+                }
+                else if (normalized == "websocket") {
+                    config.moonraker.transport = MoonrakerTransportKind::WebSocket;
+                }
+                else {
+                    error = "invalid transport value at line " + std::to_string(line_number) +
+                            " (expected unix or websocket)";
+                    return false;
+                }
+            }
+            else if (key == "socket_path") {
+                config.moonraker.socket_path = value;
+            }
+            else if (key == "url") {
+                config.moonraker.url = value;
+            }
+            else if (key == "api_key") {
+                config.moonraker.api_key = value;
             }
         }
     }

@@ -11,6 +11,7 @@
 #include "help_popup.h"
 #include "logger.h"
 #include "linux_input.h"
+#include "printer_service.h"
 #include "screenshot_service.h"
 #include "screen_manager.h"
 #include "base_viewmodel.h"
@@ -323,6 +324,9 @@ int Application::run() {
     ScreenManager screen_manager(view_model, assets);
     screen_manager.start();
     ShortcutController shortcuts(view_model, assets);
+
+    PrinterService printer_service(config.moonraker);
+    printer_service.start();
 
     DarkModePersistence dark_mode_persistence{user_config_path, view_model.is_dark_mode()};
     auto* dark_mode_observer = lv_subject_add_observer(view_model.dark_mode_subject(),
