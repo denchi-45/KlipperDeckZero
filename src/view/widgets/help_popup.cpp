@@ -21,18 +21,47 @@ struct HelpRow {
     const char* action;
 };
 
-constexpr std::array<HelpRow, 4> kHomeRows = {{
+constexpr HelpRow kHomeRows[] = {
     {"HOLD ESC / 4", "Exit"},
     {"5 / 6", "Temperature / Extruder"},
     {"7 / 8", "Files / Print control"},
+    {"S", "Connection settings"},
     {"D", "Light / dark theme"},
-}};
+};
 
-constexpr std::array<HelpRow, 3> kPageRows = {{
+constexpr HelpRow kPageRows[] = {
     {"ESC", "Back to status"},
     {"4 - 8", "Switch page"},
     {"D", "Light / dark theme"},
-}};
+};
+
+constexpr HelpRow kSettingsRows[] = {
+    {"UP / DOWN", "Select a row"},
+    {"ENTER", "Edit / change / save"},
+    {"LEFT / RIGHT", "Change a choice"},
+    {"ESC", "Cancel edit / back"},
+};
+
+struct HelpRows {
+    const HelpRow* rows;
+    std::size_t count;
+};
+
+template <std::size_t N>
+constexpr HelpRows rows_of(const HelpRow (&rows)[N]) {
+    return {rows, N};
+}
+
+HelpRows rows_for(model::AppPage page) {
+    switch (page) {
+        case model::AppPage::Status:
+            return rows_of(kHomeRows);
+        case model::AppPage::Settings:
+            return rows_of(kSettingsRows);
+        default:
+            return rows_of(kPageRows);
+    }
+}
 
 } // namespace
 
@@ -155,16 +184,15 @@ bool HelpPopup::visible() const {
 }
 
 void HelpPopup::update_rows(model::AppPage page) {
-    const bool home = page == model::AppPage::Status;
+    const auto rows = rows_for(page);
     lv_label_set_text(page_badge_, model::page_title(page));
     for (std::size_t i = 0; i < rows_.size(); ++i) {
-        const bool row_visible = home ? i < kHomeRows.size() : i < kPageRows.size();
-        if (!row_visible) {
+        if (i >= rows.count) {
             lv_obj_add_flag(rows_[i].row, LV_OBJ_FLAG_HIDDEN);
             continue;
         }
         lv_obj_remove_flag(rows_[i].row, LV_OBJ_FLAG_HIDDEN);
-        const auto& row = home ? kHomeRows[i] : kPageRows[i];
+        const auto& row = rows.rows[i];
         lv_label_set_text(rows_[i].key, row.key);
         lv_label_set_text(rows_[i].action, row.action);
     }

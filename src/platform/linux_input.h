@@ -27,6 +27,13 @@ void set_key_release_listener(KeyReleaseListener listener, void* user_data);
 void clear_key_release_listener(KeyReleaseListener listener, void* user_data);
 void set_global_key_listener(GlobalKeyListener listener, void* user_data);
 void clear_global_key_listener(GlobalKeyListener listener, void* user_data);
+
+// The active screen's own key handling (e.g. a text field). The global key listener offers keys
+// to it before treating them as shortcuts; returning true consumes the key.
+using ScreenKeyHandler = bool (*)(uint32_t key, bool long_pressed, void* user_data);
+void set_screen_key_handler(ScreenKeyHandler handler, void* user_data);
+void clear_screen_key_handler(ScreenKeyHandler handler, void* user_data);
+bool dispatch_screen_key(uint32_t key, bool long_pressed);
 const char* describe_key(uint32_t key);
 
 } // namespace platform

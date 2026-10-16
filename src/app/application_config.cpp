@@ -102,13 +102,21 @@ const std::vector<SettingDescriptor> kSettings = {
                                                                                   : "websocket";
      }},
     {Setting::MoonrakerSocketPath, "moonraker", "socket_path",
-     [](const std::string& value, ApplicationConfig& config, std::string&) {
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         if (value.empty()) {
+             error = "expected a file path";
+             return false;
+         }
          config.moonraker.socket_path = value;
          return true;
      },
      [](const ApplicationConfig& config) { return config.moonraker.socket_path; }},
     {Setting::MoonrakerHost, "moonraker", "host",
-     [](const std::string& value, ApplicationConfig& config, std::string&) {
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         if (value.empty() || value.find_first_of(" \t/") != std::string::npos) {
+             error = "expected an IP address or host name";
+             return false;
+         }
          config.moonraker.host = value;
          return true;
      },

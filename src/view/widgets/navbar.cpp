@@ -18,7 +18,7 @@ namespace view::widgets {
 namespace {
 
 // Same order as model::AppPage and the physical keys 4..8.
-constexpr std::array<const char*, model::kAppPageCount> kPageIcons = {
+constexpr std::array<const char*, model::kNavPageCount> kPageIcons = {
     ICON_GAUGE,
     ICON_THERMOMETER,
     ICON_DROP,
@@ -26,7 +26,7 @@ constexpr std::array<const char*, model::kAppPageCount> kPageIcons = {
     ICON_PLAY_PAUSE,
 };
 
-constexpr std::array<int32_t, model::kAppPageCount> kNavButtonXOffsets = {30, 17, 2, -15, -30};
+constexpr std::array<int32_t, model::kNavPageCount> kNavButtonXOffsets = {30, 17, 2, -15, -30};
 
 } // namespace
 
@@ -120,7 +120,7 @@ void NavBar::show_page_cb(lv_event_t* event) {
         return;
     }
     const auto index = reinterpret_cast<uintptr_t>(lv_obj_get_user_data(button));
-    if (index < model::kAppPageCount) {
+    if (index < model::kNavPageCount) {
         view_model->show_page(static_cast<model::AppPage>(index));
     }
 }

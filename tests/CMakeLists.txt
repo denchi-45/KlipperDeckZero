@@ -25,7 +25,10 @@ add_executable(kdz_tests
     test_session.cpp
     test_config.cpp
     test_printer_format.cpp
+    test_settings_form.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/settings_form.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/settings_store.cpp"
     "${KDZ_SOURCE_DIR}/src/viewmodel/printer_format.cpp"
 )
 

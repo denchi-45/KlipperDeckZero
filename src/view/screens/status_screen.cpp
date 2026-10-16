@@ -236,6 +236,11 @@ void StatusScreen::build_overlay(lv_obj_t* content) {
     lv_obj_set_style_text_align(detail, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_font(detail, small_font_, 0);
     view::widgets::bind_muted_text(detail, dark);
+
+    auto* hint = lv_label_create(overlay);
+    lv_label_set_text(hint, "S: connection settings");
+    lv_obj_set_style_text_font(hint, small_font_, 0);
+    view::widgets::bind_muted_text(hint, dark);
 }
 
 } // namespace screen

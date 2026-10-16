@@ -35,6 +35,8 @@ KeyReleaseListener key_release_listener = nullptr;
 void* key_release_listener_user_data = nullptr;
 GlobalKeyListener global_key_listener = nullptr;
 void* global_key_listener_user_data = nullptr;
+ScreenKeyHandler screen_key_handler = nullptr;
+void* screen_key_handler_user_data = nullptr;
 
 constexpr uint32_t kLongPressMs = 700;
 
@@ -43,6 +45,8 @@ struct EvdevKeypad {
     int fd{-1};
     lv_indev_state_t state{LV_INDEV_STATE_RELEASED};
     uint32_t key{0};
+    uint16_t pressed_code{0};
+    bool shift{false};
     bool router_event_pending{false};
     uint32_t router_key{0};
     bool router_pressed{false};
@@ -195,6 +199,7 @@ uint32_t map_evdev_letter_or_digit(uint16_t code) {
         {KEY_Y, 'y'}, {KEY_Z, 'z'}, {KEY_0, '0'}, {KEY_1, '1'}, {KEY_2, '2'}, {KEY_3, '3'},
         {KEY_4, '4'}, {KEY_5, '5'}, {KEY_6, '6'}, {KEY_7, '7'}, {KEY_8, '8'}, {KEY_9, '9'},
         {KEY_SPACE, ' '}, {KEY_MINUS, '-'}, {KEY_EQUAL, '='}, {KEY_DOT, '.'},
+        {KEY_SLASH, '/'}, {KEY_COMMA, ','}, {KEY_SEMICOLON, ';'}, {KEY_GRAVE, '`'},
     };
     for (const auto& entry : kKeys) {
         if (entry.code == code) {
@@ -204,7 +209,34 @@ uint32_t map_evdev_letter_or_digit(uint16_t code) {
     return 0;
 }
 
-uint32_t map_evdev_key(uint16_t code) {
+// Characters needed for host names and file paths that only exist with Shift held.
+uint32_t map_evdev_shifted(uint16_t code) {
+    switch (code) {
+        case KEY_MINUS:
+            return '_';
+        case KEY_SEMICOLON:
+            return ':';
+        case KEY_GRAVE:
+            return '~';
+        case KEY_SLASH:
+            return '?';
+        default: {
+            const auto key = map_evdev_letter_or_digit(code);
+            return key >= 'a' && key <= 'z' ? key - 'a' + 'A' : 0;
+        }
+    }
+}
+
+bool is_shift(uint16_t code) {
+    return code == KEY_LEFTSHIFT || code == KEY_RIGHTSHIFT;
+}
+
+uint32_t map_evdev_key(uint16_t code, bool shift) {
+    if (shift) {
+        if (const auto shifted = map_evdev_shifted(code)) {
+            return shifted;
+        }
+    }
     switch (code) {
         case KEY_ENTER:
         case KEY_KPENTER:
@@ -276,9 +308,22 @@ void evdev_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
             continue;
         }
 
-        const auto key = map_evdev_key(input.code);
-        if (!key || input.value == 2) {
+        if (is_shift(input.code)) {
+            keypad->shift = input.value != 0;
             continue;
+        }
+        if (input.value == 2) {
+            continue;
+        }
+
+        // A release reports the key its press did, even if Shift changed in between.
+        const bool releasing_pressed = input.value == 0 && input.code == keypad->pressed_code;
+        const auto key = releasing_pressed ? keypad->key : map_evdev_key(input.code, keypad->shift);
+        if (!key) {
+            continue;
+        }
+        if (input.value) {
+            keypad->pressed_code = input.code;
         }
 
         keypad->key = key;
@@ -441,6 +486,23 @@ void clear_global_key_listener(GlobalKeyListener listener, void* user_data) {
         global_key_listener = nullptr;
         global_key_listener_user_data = nullptr;
     }
+}
+
+void set_screen_key_handler(ScreenKeyHandler handler, void* user_data) {
+    screen_key_handler = handler;
+    screen_key_handler_user_data = user_data;
+}
+
+void clear_screen_key_handler(ScreenKeyHandler handler, void* user_data) {
+    if (screen_key_handler == handler && screen_key_handler_user_data == user_data) {
+        screen_key_handler = nullptr;
+        screen_key_handler_user_data = nullptr;
+    }
+}
+
+bool dispatch_screen_key(uint32_t key, bool long_pressed) {
+    return screen_key_handler &&
+           screen_key_handler(key, long_pressed, screen_key_handler_user_data);
 }
 
 const char* describe_key(uint32_t key) {
