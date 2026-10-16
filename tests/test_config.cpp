@@ -183,6 +183,22 @@ TEST_CASE("config: saving creates missing sections") {
     std::remove(path.c_str());
 }
 
+#ifndef _WIN32
+TEST_CASE("config: saving makes the file readable only by its owner") {
+    const auto path = write_temp_config("kdz_test_save_private.conf", "[moonraker]\n");
+    namespace fs = std::filesystem;
+    fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write | fs::perms::group_read |
+                              fs::perms::others_read);
+
+    app::ApplicationConfig config;
+    config.moonraker.api_key = "secret";
+    std::string error;
+    CHECK(app::save_application_config(path, config, {app::Setting::MoonrakerApiKey}, error));
+    CHECK(fs::status(path).permissions() == (fs::perms::owner_read | fs::perms::owner_write));
+    std::remove(path.c_str());
+}
+#endif
+
 TEST_CASE("config: expand_user_path") {
     CHECK_EQ(app::expand_user_path("/abs/path"), std::string("/abs/path"));
     CHECK_EQ(app::expand_user_path("~"), std::string("~"));

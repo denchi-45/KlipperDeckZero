@@ -20,6 +20,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace app {
@@ -185,6 +189,23 @@ void replace_file(const std::filesystem::path& source,
     }
 #else
     std::filesystem::rename(source, target, error);
+#endif
+}
+
+// Creates an empty file readable only by its owner, since the config holds the Moonraker API key.
+// The mode is set on an existing file too, and survives the rename over the target. Windows
+// files inherit the ACL of the user's profile directory instead.
+bool create_private_file(const std::string& path) {
+#ifdef _WIN32
+    std::ofstream output(path, std::ios::trunc);
+    return static_cast<bool>(output);
+#else
+    const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        return false;
+    }
+    const bool ok = ::fchmod(fd, 0600) == 0;
+    return ::close(fd) == 0 && ok;
 #endif
 }
 
@@ -382,6 +403,10 @@ bool save_application_config(const std::string& path,
     // truncated config behind.
     const std::string temp_path = path + ".tmp";
     {
+        if (!create_private_file(temp_path)) {
+            error = "could not open file for writing";
+            return false;
+        }
         std::ofstream output(temp_path, std::ios::trunc);
         if (!output) {
             error = "could not open file for writing";
