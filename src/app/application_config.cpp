@@ -12,6 +12,16 @@
 #include <fstream>
 #include <vector>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace app {
 namespace {
 
@@ -55,6 +65,23 @@ bool is_key(const std::string& line, const std::string& expected) {
     const auto separator = line.find('=');
     return separator != std::string::npos &&
            lowercase(trim(line.substr(0, separator))) == expected;
+}
+
+// Replaces target with source. std::filesystem::rename cannot overwrite an existing file with
+// MinGW's libstdc++, so Windows goes through MoveFileExW.
+void replace_file(const std::filesystem::path& source,
+                  const std::filesystem::path& target,
+                  std::error_code& error) {
+#ifdef _WIN32
+    if (MoveFileExW(source.c_str(), target.c_str(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        error.clear();
+    } else {
+        error.assign(static_cast<int>(GetLastError()), std::system_category());
+    }
+#else
+    std::filesystem::rename(source, target, error);
+#endif
 }
 
 } // namespace
@@ -185,7 +212,7 @@ bool save_application_config(const std::string& path,
     }
 
     std::error_code rename_error;
-    std::filesystem::rename(temp_path, path, rename_error);
+    replace_file(temp_path, path, rename_error);
     if (rename_error) {
         error = "could not replace file: " + rename_error.message();
         std::error_code remove_error;
