@@ -553,8 +553,16 @@ int main(int argc, char** argv) {
     int port = 7125;
     double speed = 20.0;
     std::string autostart;
-    for (int i = 1; i + 1 < argc; i += 2) {
+    for (int i = 1; i < argc; i += 2) {
         const std::string flag = argv[i];
+        if (flag != "--host" && flag != "--port" && flag != "--speed" && flag != "--print") {
+            std::fprintf(stderr, "unknown option: %s\n", flag.c_str());
+            return 2;
+        }
+        if (i + 1 >= argc) {
+            std::fprintf(stderr, "missing value for %s\n", flag.c_str());
+            return 2;
+        }
         if (flag == "--host") {
             host = argv[i + 1];
         }

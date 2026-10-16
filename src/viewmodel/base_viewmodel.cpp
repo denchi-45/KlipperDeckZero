@@ -9,6 +9,7 @@
 #include "moonraker_session.h"
 #include "printer_format.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <string>
@@ -136,7 +137,9 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
                          printer.print_state != model::PrintState::Unknown;
     set_if_changed(printer_job_, format::job_name(has_job ? printer.filename : std::string()));
 
-    const double progress = has_job ? printer.progress() : 0.0;
+    // Moonraker can report progress outside [0, 1]; keep the subject within its 0-1000 contract.
+    double progress = has_job ? printer.progress() : 0.0;
+    progress = std::isfinite(progress) ? std::clamp(progress, 0.0, 1.0) : 0.0;
     set_if_changed(printer_progress_, static_cast<int32_t>(std::lround(progress * 1000.0)));
     set_if_changed(printer_progress_text_, format::percent(progress));
 
