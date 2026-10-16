@@ -136,7 +136,7 @@ std::string SettingsForm::display_value(std::size_t index) const {
     }
     const auto& field = fields_[index];
     if (editing_ && index == focused_) {
-        return buffer_;
+        return field.secret ? std::string(buffer_.size(), '*') : buffer_;
     }
     switch (field.kind) {
         case SettingsFieldKind::Choice: {

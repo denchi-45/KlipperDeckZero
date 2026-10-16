@@ -129,6 +129,17 @@ TEST_CASE("settings form: secret values are masked") {
             CHECK_EQ(form.display_value(i), std::string("***"));
         }
     }
+
+    // Typing a key must not show it either.
+    while (field_label(form) != "API key") {
+        form.handle(SettingsInput::Down);
+    }
+    form.handle(SettingsInput::Enter);
+    CHECK(form.editing());
+    type(form, "de");
+    CHECK_EQ(form.display_value(form.focused()), std::string("*****"));
+    form.handle(SettingsInput::Enter);
+    CHECK_EQ(form.draft().moonraker.api_key, std::string("abcde"));
 }
 
 TEST_CASE("settings store: saves only changed settings and notifies") {
