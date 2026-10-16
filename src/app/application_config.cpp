@@ -201,16 +201,33 @@ bool save_application_config(const std::string& path,
         updated.push_back(dark_mode_line);
     }
 
-    std::ofstream output(path, std::ios::trunc);
-    if (!output) {
-        error = "could not open file for writing";
-        return false;
+    // Write a sibling temp file and rename it over the target so a power loss never leaves a
+    // truncated config behind.
+    const std::string temp_path = path + ".tmp";
+    {
+        std::ofstream output(temp_path, std::ios::trunc);
+        if (!output) {
+            error = "could not open file for writing";
+            return false;
+        }
+        for (const auto& updated_line : updated) {
+            output << updated_line << '\n';
+        }
+        output.flush();
+        if (!output) {
+            error = "failed while writing file";
+            std::error_code remove_error;
+            std::filesystem::remove(temp_path, remove_error);
+            return false;
+        }
     }
-    for (const auto& updated_line : updated) {
-        output << updated_line << '\n';
-    }
-    if (!output) {
-        error = "failed while writing file";
+
+    std::error_code rename_error;
+    std::filesystem::rename(temp_path, path, rename_error);
+    if (rename_error) {
+        error = "could not replace file: " + rename_error.message();
+        std::error_code remove_error;
+        std::filesystem::remove(temp_path, remove_error);
         return false;
     }
 

@@ -23,9 +23,9 @@ namespace platform {
 namespace {
 
 std::array<lv_obj_t*, kNavKeyCount> nav_buttons{};
-uint32_t last_key = 0;
-bool last_key_pressed = false;
 bool nav_shortcut_mode = false;
+// The active hold belongs to the input device that pressed it; other devices cannot release it.
+lv_indev_t* hold_owner = nullptr;
 uint32_t pressed_key = 0;
 uint32_t press_started_at = 0;
 bool long_press_sent = false;
@@ -124,9 +124,10 @@ void ensure_long_press_timer() {
     }
 }
 
-void route_key_state(uint32_t key, bool pressed) {
-    const bool new_hold = pressed && (!last_key_pressed || pressed_key != key);
-    if (new_hold) {
+void route_key_state(lv_indev_t* indev, uint32_t key, bool pressed) {
+    const bool holding_this_key = pressed_key != 0 && hold_owner == indev && pressed_key == key;
+    if (pressed && !holding_this_key) {
+        hold_owner = indev;
         pressed_key = key;
         press_started_at = lv_tick_get();
         long_press_sent = false;
@@ -136,19 +137,17 @@ void route_key_state(uint32_t key, bool pressed) {
             dispatch_nav_key(key);
         }
     }
-    else if (!pressed && last_key_pressed && pressed_key == key) {
+    else if (!pressed && holding_this_key) {
         if (key_release_listener) {
             key_release_listener(key, describe_key(key), key_release_listener_user_data);
         }
+        hold_owner = nullptr;
         pressed_key = 0;
         pressed_key_consumed = false;
         if (long_press_timer) {
             lv_timer_pause(long_press_timer);
         }
     }
-
-    last_key = key;
-    last_key_pressed = pressed;
 }
 
 void key_event_cb(lv_event_t* event) {
@@ -171,7 +170,7 @@ void key_event_cb(lv_event_t* event) {
         const auto key = keypad->router_key;
         const bool pressed = keypad->router_pressed;
 
-        route_key_state(key, pressed);
+        route_key_state(indev, key, pressed);
         return;
     }
 #endif
@@ -179,7 +178,7 @@ void key_event_cb(lv_event_t* event) {
     const auto key = lv_indev_get_key(indev);
     const bool pressed = lv_indev_get_state(indev) == LV_INDEV_STATE_PRESSED;
 
-    route_key_state(key, pressed);
+    route_key_state(indev, key, pressed);
 }
 
 #if !USE_DESKTOP

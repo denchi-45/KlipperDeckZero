@@ -16,7 +16,7 @@
 #include <utility>
 
 #ifndef APP_NAME
-#define APP_NAME "klipper_deck_zero"
+#define APP_NAME "klipper-deck-zero"
 #endif
 
 #ifndef APP_CMAKE_ASSETS_ROOT
