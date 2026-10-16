@@ -1,4 +1,5 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ja-JP
 reviews:
   # Approve the PR once all CodeRabbit comments are resolved
   request_changes_workflow: true
