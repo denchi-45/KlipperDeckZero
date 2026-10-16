@@ -102,6 +102,27 @@ TEST_CASE("config: invalid port is rejected") {
     }
 }
 
+TEST_CASE("config: hosts that make a broken URL are rejected") {
+    for (const char* host : {"192.168.1.50", "mainsailos.local", "fe80::1", "[fe80::1]"}) {
+        const auto path = write_temp_config("kdz_test_host.conf",
+                                            std::string("[moonraker]\nhost=") + host + "\n");
+        app::ApplicationConfig config;
+        std::string error;
+        CHECK(app::load_application_config(path, config, error));
+        CHECK_EQ(config.moonraker.host, std::string(host));
+        std::remove(path.c_str());
+    }
+    for (const char* host : {"[]", "[example.com]", "[fe80::1", "foo:bar", "a]b"}) {
+        const auto path = write_temp_config("kdz_test_host.conf",
+                                            std::string("[moonraker]\nhost=") + host + "\n");
+        app::ApplicationConfig config;
+        std::string error;
+        CHECK(!app::load_application_config(path, config, error));
+        CHECK(error.find("host") != std::string::npos);
+        std::remove(path.c_str());
+    }
+}
+
 TEST_CASE("config: saving dark_mode keeps the moonraker section") {
     const auto path = write_temp_config("kdz_test_save.conf",
                                         "[application]\n"

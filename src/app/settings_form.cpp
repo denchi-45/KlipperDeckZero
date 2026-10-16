@@ -20,7 +20,8 @@ bool uses_websocket(const ApplicationConfig& config) {
 const std::vector<SettingsField> kConnectionFields = {
     {"Connect to", SettingsFieldKind::Choice, Setting::MoonrakerTransport,
      {{"This device", "unix"}, {"Network", "websocket"}}, 0, false, nullptr},
-    {"Socket", SettingsFieldKind::Text, Setting::MoonrakerSocketPath, {}, 108, false,
+    // sun_path is 108 bytes including the terminating NUL.
+    {"Socket", SettingsFieldKind::Text, Setting::MoonrakerSocketPath, {}, 107, false,
      uses_unix_socket},
     {"Host", SettingsFieldKind::Text, Setting::MoonrakerHost, {}, 253, false, uses_websocket},
     {"Port", SettingsFieldKind::Text, Setting::MoonrakerPort, {}, 5, false, uses_websocket},

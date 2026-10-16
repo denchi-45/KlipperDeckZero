@@ -20,7 +20,9 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <ws2tcpip.h>
 #else
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -37,6 +39,27 @@ std::string trim(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), is_not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), is_not_space).base(), value.end());
     return value;
+}
+
+bool is_ipv6_address(const std::string& value) {
+    in6_addr address{};
+    return inet_pton(AF_INET6, value.c_str(), &address) == 1;
+}
+
+// A host name or IPv4 address, or an IPv6 address with or without brackets. Anything else with
+// a colon or bracket would make websocket_url() build a broken URL.
+bool is_valid_host(const std::string& value) {
+    if (value.empty() || value.find_first_of(" \t/") != std::string::npos) {
+        return false;
+    }
+    if (value.front() == '[') {
+        return value.size() > 2 && value.back() == ']' &&
+               is_ipv6_address(value.substr(1, value.size() - 2));
+    }
+    if (value.find_first_of(":[]") != std::string::npos) {
+        return is_ipv6_address(value);
+    }
+    return true;
 }
 
 std::string lowercase(std::string value) {
@@ -117,7 +140,7 @@ const std::vector<SettingDescriptor> kSettings = {
      [](const ApplicationConfig& config) { return config.moonraker.socket_path; }},
     {Setting::MoonrakerHost, "moonraker", "host",
      [](const std::string& value, ApplicationConfig& config, std::string& error) {
-         if (value.empty() || value.find_first_of(" \t/") != std::string::npos) {
+         if (!is_valid_host(value)) {
              error = "expected an IP address or host name";
              return false;
          }
