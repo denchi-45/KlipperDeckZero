@@ -34,7 +34,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 ```powershell
 cmake --preset win32-mingw64
 cmake --build build/mingw64 --config Debug
-./build/mingw64/Debug/klipper_deck_zero.exe
+./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
 MSVC の場合は `win32-msvc` プリセット(`build/msvc`)を使います。

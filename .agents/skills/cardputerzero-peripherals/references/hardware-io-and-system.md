@@ -79,7 +79,7 @@ enum class UartOpenStatus { OK, OCCUPIED_BY_CONSOLE, OPEN_FAILED, UNSUPPORTED };
 class UartDebugSession {
  public:
   static std::unique_ptr<UartDebugSession> open(
-      const std::string& path, int baud_rate, UartOpenResult& result,
+      const std::string& path, int baud_rate, UartOpenStatus& result,
       bool flush_buffers = true);
   std::string read_available(std::string& error);
   bool write_text(const std::string& text, std::string& error);
