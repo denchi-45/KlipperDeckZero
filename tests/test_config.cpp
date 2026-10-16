@@ -45,6 +45,17 @@ TEST_CASE("config: defaults point at the Klipper on this device") {
     CHECK_EQ(config.websocket_url(), std::string("ws://127.0.0.1:7125/websocket"));
 }
 
+TEST_CASE("config: websocket_url brackets IPv6 hosts") {
+    app::MoonrakerConfig config;
+    config.port = 7130;
+    config.host = "mainsailos.local";
+    CHECK_EQ(config.websocket_url(), std::string("ws://mainsailos.local:7130/websocket"));
+    config.host = "fe80::1";
+    CHECK_EQ(config.websocket_url(), std::string("ws://[fe80::1]:7130/websocket"));
+    config.host = "[fe80::1]";
+    CHECK_EQ(config.websocket_url(), std::string("ws://[fe80::1]:7130/websocket"));
+}
+
 TEST_CASE("config: moonraker section is parsed") {
     const auto path = write_temp_config("kdz_test_config.conf",
                                         "[application]\n"

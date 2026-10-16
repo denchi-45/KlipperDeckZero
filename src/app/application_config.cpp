@@ -183,7 +183,11 @@ void replace_file(const std::filesystem::path& source,
 } // namespace
 
 std::string MoonrakerConfig::websocket_url() const {
-    return "ws://" + host + ":" + std::to_string(port) + "/websocket";
+    // An IPv6 address must be bracketed in a URL, or its colons are read as the port separator.
+    const bool bracketed = host.size() >= 2 && host.front() == '[' && host.back() == ']';
+    const bool needs_brackets = !bracketed && host.find(':') != std::string::npos;
+    const auto url_host = needs_brackets ? "[" + host + "]" : host;
+    return "ws://" + url_host + ":" + std::to_string(port) + "/websocket";
 }
 
 const std::vector<SettingDescriptor>& setting_descriptors() {
