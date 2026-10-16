@@ -22,7 +22,7 @@ std::unique_ptr<moonraker::Transport> create_transport(const MoonrakerConfig& co
     if (config.transport == MoonrakerTransportKind::UnixSocket) {
         return moonraker::create_unix_socket_transport(expand_user_path(config.socket_path));
     }
-    return moonraker::create_websocket_transport(config.url, config.api_key);
+    return moonraker::create_websocket_transport(config.websocket_url(), config.api_key);
 }
 
 } // namespace

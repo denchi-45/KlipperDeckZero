@@ -67,10 +67,13 @@ REMOTE_USER=pi REMOTE_HOST=<ip> ./deploy.sh
 
 ```ini
 [moonraker]
-# unix | websocket(既定: 実機=unix, シミュレーター=websocket)
+# unix: この端末の Klipper / websocket: 別の機械の Klipper
+# (既定: 実機=unix, シミュレーター=websocket で 127.0.0.1)
 transport=websocket
 socket_path=~/printer_data/comms/moonraker.sock
-url=ws://127.0.0.1:7125/websocket
+# websocket のときの接続先(ws://<host>:<port>/websocket)
+host=192.168.1.50
+port=7125
 # trusted_clients に入っていない場合のみ
 #api_key=
 ```
@@ -84,7 +87,7 @@ url=ws://127.0.0.1:7125/websocket
 ./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
-実機につなぐ場合は `url=ws://<プリンターIP>:7125/websocket` に変更します。
+実機につなぐ場合は `host=<プリンターIP>` に変更します。
 
 ## テスト
 

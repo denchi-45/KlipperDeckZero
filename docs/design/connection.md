@@ -10,10 +10,10 @@
 
 接続先は設定ファイルで固定。自動探索はない。起動時に次の順で決まり、後のものが前のものを上書きする。
 
-1. 組み込みの既定値(`src/app/application_config.h`)
-   - 接続方式: 実機は `unix`、デスクトップシミュレーターは `websocket`
+1. 組み込みの既定値(`src/app/application_config.h`)。既定は「この端末の Klipper につなぐ」設定。
+   - 接続方式: 実機は `unix`、デスクトップシミュレーターは `websocket`(Windows では unix ソケットが使えないため)
    - `socket_path=~/printer_data/comms/moonraker.sock`
-   - `url=ws://127.0.0.1:7125/websocket`
+   - `host=127.0.0.1`, `port=7125`
 2. システム設定 `APP_CONFIG_FILE`
    - 実機: `/etc/klipper-deck-zero.conf`
    - デスクトップ: リポジトリの `config/klipper-deck-zero.conf`
@@ -26,9 +26,23 @@
 
 - `unix`: `~` を `$HOME` に展開したソケットパスに接続する。メッセージは ETX(0x03)区切り。
   Windows では使えない。
-- `websocket`: `url` に接続する。`api_key` を設定していれば `X-Api-Key` ヘッダーで送る。
+- `websocket`: `ws://<host>:<port>/websocket` に接続する。`api_key` を設定していれば `X-Api-Key` ヘッダーで送る。
 
 接続先を変える手段は、設定ファイルを編集して再起動することだけ。画面から変える手段はまだない。
+
+### 設定項目の追加方法
+
+設定項目は `src/app/application_config.cpp` の表(`kSettings`)で一元管理している。
+1 項目ごとに、セクション名・キー名・読み込み(値の検証)・書き出しを持つ。
+読み込みも保存もこの表を見るので、項目を増やすときは次の 3 か所に足すだけでよい。
+
+1. `ApplicationConfig`(またはその中の構造体)にフィールドを追加する
+2. `enum class Setting` に値を追加する
+3. `kSettings` に 1 行追加する
+
+保存(`save_application_config`)は、渡した項目だけを書き換える。
+ほかのキー、コメント、知らないセクションはそのまま残す。
+ユーザー設定には変えた項目だけが入るので、システム設定の値を不必要に上書きしない。
 
 ### 接続後の流れ(`src/moonraker/moonraker_session.cpp`)
 
@@ -58,6 +72,18 @@ Connecting → Initializing → (WaitingKlippy / KlippyError) → Ready
 - unix ソケット(CardputerZero 自身で Moonraker が動く構成)は補助的な扱いにする。
 - 前提の変化: `../moonraker_tech_notes.md` は、Klipper を CardputerZero 上で動かす構成を前提にしていた。
   今後はこの決定を優先する。
+- (2026-10-16 改訂)unix ソケットの扱いは下の決定で見直した。
+
+### 2026-10-16: 接続先は「このデバイス」と「ネットワーク」から選ぶ。既定は「このデバイス」
+
+- CardputerZero 自身で Klipper/Moonraker が動いているときは、unix ソケットでつなぎたい。
+  そのため unix ソケットを「詳細設定」に隠さず、接続先として最初から選べるようにする。
+  - **このデバイス**: unix ソケット。標準のパスなら入力不要。パスは詳細設定で変えられる。
+  - **ネットワーク**: WebSocket。IP アドレス(またはホスト名)とポートを入力する。
+- 既定値は「このデバイス」(実機では unix)。ソケットの有無による自動判定はしない。
+- 設定ファイルでは、接続先を `url` ではなく `host` と `port` で持つ。画面の入力欄とそのまま対応させるため。
+  `ws://` と `/websocket` は固定。
+- 設定項目は今後も増えるので、1 項目を表の 1 行で追加できる作りにする(上の「設定項目の追加方法」)。
 
 ## 検討メモ
 
@@ -91,29 +117,28 @@ Connecting → Initializing → (WaitingKlippy / KlippyError) → Ready
 
 ## 未決事項 / TODO
 
-### 接続設定画面(提案。未着手)
+### 接続設定画面
 
-ブランチ案: `feature/connection-settings`
+ブランチ: `feature/connection-settings`
 
-1. 実機でも接続方式の既定値を `websocket` にする。
-2. 接続設定画面を作る。
+1. ✅ 設定の読み書きを表で一元管理し、任意の項目を保存できるようにする。
+   接続先を `host` / `port` で持つ。既定は「このデバイス」(unix)。
+2. 接続設定画面を作る(未着手)。
    ```
    ┌ 接続設定 ─────────────────┐
-   │ IPアドレス  [192.168.1.50 ] │
+   │ 接続先  (●) このデバイス     │  ← unix ソケット
+   │         ( ) ネットワーク     │  ← WebSocket
+   │ IPアドレス  [192.168.1.50 ] │  ← ネットワークのときだけ表示
    │ ポート      [7125         ] │
-   │                            │
    │ 状態: ● 接続済み            │
-   │      [保存して接続]          │
-   │ ▸ 詳細設定(APIキー等)      │
+   │ ▸ 詳細設定(ソケットパス・APIキー)│
    └────────────────────────────┘
    ```
    - 物理キーボードで入力する(画面上のキーボードは不要)。LVGL の `lv_textarea` を使う。
    - Enter で保存し、その場でつなぎ直す(`PrinterService` を作り直す。再起動は不要)。
    - 接続できたか、エラーの内容は何かを表示する。
-   - 詳細設定には、接続方式(unix / websocket)、ソケットパス、API キーを置く。
-3. 保存処理を拡張する。今は `dark_mode` しか書き戻せないので、`[moonraker]` セクションも保存する。
-4. 初回起動時、接続先が未設定ならこの画面を最初に表示する。
-5. IP アドレスだけでなく、ホスト名(例: `mainsailos.local`)も入力できるようにする。
+   - IP アドレスだけでなく、ホスト名(例: `mainsailos.local`)も入力できる。
+3. 「このデバイス」でソケットが見つからないときは、接続設定画面へ案内する(未着手)。
 
 ### 後回しでよいもの
 
