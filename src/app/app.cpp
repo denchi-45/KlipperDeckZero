@@ -101,7 +101,7 @@ void persist_dark_mode_observer(lv_observer_t* observer, lv_subject_t* subject) 
     ApplicationConfig config;
     config.dark_mode = dark_mode;
     std::string error;
-    if (save_application_config(persistence->config_path, config, error)) {
+    if (save_application_config(persistence->config_path, config, {Setting::DarkMode}, error)) {
         LOG_INFO("saved config: {} (dark_mode={})",
                  persistence->config_path,
                  config.dark_mode ? "yes" : "no");

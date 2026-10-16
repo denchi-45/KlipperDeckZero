@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <vector>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -56,16 +55,112 @@ bool parse_bool(const std::string& value, bool& result) {
     return false;
 }
 
-bool is_section(const std::string& line, const std::string& expected) {
-    const auto normalized = trim(line);
-    return normalized.size() >= 2 && normalized.front() == '[' && normalized.back() == ']' &&
-           lowercase(trim(normalized.substr(1, normalized.size() - 2))) == expected;
+bool parse_port(const std::string& value, int& result) {
+    if (value.empty() || value.size() > 5 ||
+        !std::all_of(value.begin(), value.end(), [](unsigned char character) {
+            return std::isdigit(character);
+        })) {
+        return false;
+    }
+    const int port = std::atoi(value.c_str());
+    if (port < 1 || port > 65535) {
+        return false;
+    }
+    result = port;
+    return true;
 }
 
-bool is_key(const std::string& line, const std::string& expected) {
-    const auto separator = line.find('=');
-    return separator != std::string::npos &&
-           lowercase(trim(line.substr(0, separator))) == expected;
+const std::vector<SettingDescriptor> kSettings = {
+    {Setting::DarkMode, "application", "dark_mode",
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         if (!parse_bool(value, config.dark_mode)) {
+             error = "expected yes or no";
+             return false;
+         }
+         return true;
+     },
+     [](const ApplicationConfig& config) -> std::string {
+         return config.dark_mode ? "yes" : "no";
+     }},
+    {Setting::MoonrakerTransport, "moonraker", "transport",
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         const auto normalized = lowercase(value);
+         if (normalized == "unix") {
+             config.moonraker.transport = MoonrakerTransportKind::UnixSocket;
+         }
+         else if (normalized == "websocket") {
+             config.moonraker.transport = MoonrakerTransportKind::WebSocket;
+         }
+         else {
+             error = "expected unix or websocket";
+             return false;
+         }
+         return true;
+     },
+     [](const ApplicationConfig& config) -> std::string {
+         return config.moonraker.transport == MoonrakerTransportKind::UnixSocket ? "unix"
+                                                                                  : "websocket";
+     }},
+    {Setting::MoonrakerSocketPath, "moonraker", "socket_path",
+     [](const std::string& value, ApplicationConfig& config, std::string&) {
+         config.moonraker.socket_path = value;
+         return true;
+     },
+     [](const ApplicationConfig& config) { return config.moonraker.socket_path; }},
+    {Setting::MoonrakerHost, "moonraker", "host",
+     [](const std::string& value, ApplicationConfig& config, std::string&) {
+         config.moonraker.host = value;
+         return true;
+     },
+     [](const ApplicationConfig& config) { return config.moonraker.host; }},
+    {Setting::MoonrakerPort, "moonraker", "port",
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         if (!parse_port(value, config.moonraker.port)) {
+             error = "expected a number from 1 to 65535";
+             return false;
+         }
+         return true;
+     },
+     [](const ApplicationConfig& config) { return std::to_string(config.moonraker.port); }},
+    {Setting::MoonrakerApiKey, "moonraker", "api_key",
+     [](const std::string& value, ApplicationConfig& config, std::string&) {
+         config.moonraker.api_key = value;
+         return true;
+     },
+     [](const ApplicationConfig& config) { return config.moonraker.api_key; }},
+};
+
+const SettingDescriptor* find_setting(const std::string& section, const std::string& key) {
+    for (const auto& descriptor : kSettings) {
+        if (section == descriptor.section && key == descriptor.key) {
+            return &descriptor;
+        }
+    }
+    return nullptr;
+}
+
+bool is_comment(const std::string& trimmed_line) {
+    return !trimmed_line.empty() && (trimmed_line.front() == '#' || trimmed_line.front() == ';');
+}
+
+bool is_section_header(const std::string& trimmed_line) {
+    return trimmed_line.size() >= 2 && trimmed_line.front() == '[' && trimmed_line.back() == ']';
+}
+
+std::string section_name(const std::string& trimmed_line) {
+    return lowercase(trim(trimmed_line.substr(1, trimmed_line.size() - 2)));
+}
+
+// Returns the lowercased key of a "key=value" line, or an empty string for any other line.
+std::string key_name(const std::string& trimmed_line) {
+    if (trimmed_line.empty() || is_comment(trimmed_line) || is_section_header(trimmed_line)) {
+        return {};
+    }
+    const auto separator = trimmed_line.find('=');
+    if (separator == std::string::npos) {
+        return {};
+    }
+    return lowercase(trim(trimmed_line.substr(0, separator)));
 }
 
 // Replaces target with source. std::filesystem::rename cannot overwrite an existing file with
@@ -86,6 +181,23 @@ void replace_file(const std::filesystem::path& source,
 }
 
 } // namespace
+
+std::string MoonrakerConfig::websocket_url() const {
+    return "ws://" + host + ":" + std::to_string(port) + "/websocket";
+}
+
+const std::vector<SettingDescriptor>& setting_descriptors() {
+    return kSettings;
+}
+
+const SettingDescriptor& setting_descriptor(Setting id) {
+    const auto found = std::find_if(kSettings.begin(), kSettings.end(),
+                                    [id](const SettingDescriptor& descriptor) {
+                                        return descriptor.id == id;
+                                    });
+    // Every Setting has a row; a missing one is a programming error caught by the tests.
+    return found != kSettings.end() ? *found : kSettings.front();
+}
 
 std::string expand_user_path(const std::string& path) {
     if (path.size() < 2 || path[0] != '~' || (path[1] != '/' && path[1] != '\\')) {
@@ -114,52 +226,28 @@ bool load_application_config(const std::string& path,
     while (std::getline(input, line)) {
         ++line_number;
         line = trim(line);
-        if (line.empty() || line.front() == '#' || line.front() == ';') {
+        if (is_section_header(line)) {
+            section = section_name(line);
             continue;
         }
 
-        if (line.front() == '[' && line.back() == ']') {
-            section = lowercase(trim(line.substr(1, line.size() - 2)));
+        const auto key = key_name(line);
+        if (key.empty()) {
+            continue;
+        }
+        const auto* descriptor = find_setting(section, key);
+        if (!descriptor) {
             continue;
         }
 
-        const auto separator = line.find('=');
-        if (separator == std::string::npos) {
-            continue;
-        }
-
-        const auto key = lowercase(trim(line.substr(0, separator)));
-        const auto value = trim(line.substr(separator + 1));
-        if (section == "application" && key == "dark_mode") {
-            if (!parse_bool(value, config.dark_mode)) {
-                error = "invalid dark_mode value at line " + std::to_string(line_number);
-                return false;
+        const auto value = trim(line.substr(line.find('=') + 1));
+        std::string reason;
+        if (!descriptor->parse(value, config, reason)) {
+            error = "invalid " + key + " value at line " + std::to_string(line_number);
+            if (!reason.empty()) {
+                error += " (" + reason + ")";
             }
-        }
-        else if (section == "moonraker") {
-            if (key == "transport") {
-                const auto normalized = lowercase(value);
-                if (normalized == "unix") {
-                    config.moonraker.transport = MoonrakerTransportKind::UnixSocket;
-                }
-                else if (normalized == "websocket") {
-                    config.moonraker.transport = MoonrakerTransportKind::WebSocket;
-                }
-                else {
-                    error = "invalid transport value at line " + std::to_string(line_number) +
-                            " (expected unix or websocket)";
-                    return false;
-                }
-            }
-            else if (key == "socket_path") {
-                config.moonraker.socket_path = value;
-            }
-            else if (key == "url") {
-                config.moonraker.url = value;
-            }
-            else if (key == "api_key") {
-                config.moonraker.api_key = value;
-            }
+            return false;
         }
     }
 
@@ -168,8 +256,28 @@ bool load_application_config(const std::string& path,
 
 bool save_application_config(const std::string& path,
                              const ApplicationConfig& config,
+                             std::initializer_list<Setting> settings,
+                             std::string& error) {
+    return save_application_config(path, config, std::vector<Setting>(settings), error);
+}
+
+bool save_application_config(const std::string& path,
+                             const ApplicationConfig& config,
+                             const std::vector<Setting>& settings,
                              std::string& error) {
     error.clear();
+
+    std::vector<const SettingDescriptor*> pending;
+    for (const auto id : settings) {
+        const auto* descriptor = &setting_descriptor(id);
+        if (std::find(pending.begin(), pending.end(), descriptor) == pending.end()) {
+            pending.push_back(descriptor);
+        }
+    }
+    std::vector<bool> written(pending.size(), false);
+    const auto setting_line = [&config](const SettingDescriptor& descriptor) {
+        return std::string(descriptor.key) + "=" + descriptor.format(config);
+    };
 
     const std::filesystem::path config_path(path);
     const auto parent = config_path.parent_path();
@@ -193,42 +301,69 @@ bool save_application_config(const std::string& path,
     }
 
     std::vector<std::string> updated;
-    bool in_application_section = false;
-    bool found_application_section = false;
-    bool wrote_dark_mode = false;
-    const std::string dark_mode_line = config.dark_mode ? "dark_mode=yes" : "dark_mode=no";
+    std::string section;
+    std::size_t section_start = 0;
+
+    // Adds the settings of the current section that the file did not have yet, after its last
+    // non-blank line.
+    const auto finish_section = [&] {
+        auto position = updated.size();
+        while (position > section_start && trim(updated[position - 1]).empty()) {
+            --position;
+        }
+        std::vector<std::string> additions;
+        for (std::size_t i = 0; i < pending.size(); ++i) {
+            if (!written[i] && section == pending[i]->section) {
+                additions.push_back(setting_line(*pending[i]));
+                written[i] = true;
+            }
+        }
+        updated.insert(updated.begin() + static_cast<std::ptrdiff_t>(position),
+                       additions.begin(),
+                       additions.end());
+    };
 
     for (const auto& current_line : lines) {
         const auto normalized = trim(current_line);
-        const bool section_header = normalized.size() >= 2 && normalized.front() == '[' &&
-                                    normalized.back() == ']';
-        if (section_header) {
-            if (in_application_section && !wrote_dark_mode) {
-                updated.push_back(dark_mode_line);
-                wrote_dark_mode = true;
-            }
-            in_application_section = is_section(current_line, "application");
-            found_application_section = found_application_section || in_application_section;
+        if (is_section_header(normalized)) {
+            finish_section();
+            section = section_name(normalized);
+            updated.push_back(current_line);
+            section_start = updated.size();
+            continue;
         }
 
-        if (in_application_section && is_key(current_line, "dark_mode")) {
-            if (!wrote_dark_mode) {
-                updated.push_back(dark_mode_line);
-                wrote_dark_mode = true;
+        const auto key = key_name(normalized);
+        const auto match = std::find_if(pending.begin(), pending.end(),
+                                        [&](const SettingDescriptor* descriptor) {
+                                            return !key.empty() && section == descriptor->section &&
+                                                   key == descriptor->key;
+                                        });
+        if (match != pending.end()) {
+            // The first occurrence takes the new value; later duplicates are dropped.
+            const auto index = static_cast<std::size_t>(match - pending.begin());
+            if (!written[index]) {
+                updated.push_back(setting_line(**match));
+                written[index] = true;
             }
             continue;
         }
         updated.push_back(current_line);
     }
+    finish_section();
 
-    if (!wrote_dark_mode) {
-        if (!updated.empty() && !updated.back().empty()) {
+    // Settings whose section is not in the file yet go into new sections at the end.
+    for (std::size_t i = 0; i < pending.size(); ++i) {
+        if (written[i]) {
+            continue;
+        }
+        if (!updated.empty() && !trim(updated.back()).empty()) {
             updated.emplace_back();
         }
-        if (!found_application_section) {
-            updated.emplace_back("[application]");
-        }
-        updated.push_back(dark_mode_line);
+        section = pending[i]->section;
+        updated.push_back("[" + section + "]");
+        section_start = updated.size();
+        finish_section();
     }
 
     // Write a sibling temp file and rename it over the target so a power loss never leaves a
