@@ -56,7 +56,7 @@ public:
     enum class Result {
         Ignored, // not used by the form; the caller may treat it as a shortcut
         Handled,
-        Submit,  // the save row was activated; draft() holds the values to apply
+        Submit,  // the save row was activated; apply_to() gives the config to apply
     };
 
     SettingsForm(const ApplicationConfig& config, const std::vector<SettingsField>& fields);
@@ -72,6 +72,9 @@ public:
     // Validation error of the last edit, empty when none.
     const std::string& error() const;
     const ApplicationConfig& draft() const;
+    // current with only this form's settings taken from the draft, so settings changed elsewhere
+    // while the form was open (e.g. dark mode) are not reverted.
+    ApplicationConfig apply_to(const ApplicationConfig& current) const;
 
 private:
     void move_focus(int step);

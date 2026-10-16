@@ -112,6 +112,21 @@ TEST_CASE("settings form: invalid values stay in the editor") {
     CHECK_EQ(form.display_value(form.focused()), std::string("7125"));
 }
 
+TEST_CASE("settings form: applying keeps settings changed outside the form") {
+    SettingsForm form(local_config(), app::connection_settings_fields());
+    form.handle(SettingsInput::Right); // Network
+
+    // Dark mode was toggled with D while the form was open.
+    auto current = local_config();
+    current.dark_mode = !current.dark_mode;
+    const auto updated = form.apply_to(current);
+    CHECK(updated.dark_mode == current.dark_mode);
+    CHECK(updated.moonraker.transport == app::MoonrakerTransportKind::WebSocket);
+    const auto changed = app::changed_settings(current, updated);
+    CHECK_EQ(changed.size(), static_cast<std::size_t>(1));
+    CHECK(changed.front() == app::Setting::MoonrakerTransport);
+}
+
 TEST_CASE("settings form: keys outside editing are left to shortcuts") {
     SettingsForm form(local_config(), app::connection_settings_fields());
     CHECK(form.handle(SettingsInput::Character, 'd') == SettingsForm::Result::Ignored);

@@ -166,6 +166,20 @@ const ApplicationConfig& SettingsForm::draft() const {
     return draft_;
 }
 
+ApplicationConfig SettingsForm::apply_to(const ApplicationConfig& current) const {
+    auto updated = current;
+    for (const auto& field : fields_) {
+        if (field.kind == SettingsFieldKind::Action) {
+            continue;
+        }
+        // The draft only ever holds values that passed parse, so this cannot fail.
+        const auto& descriptor = setting_descriptor(field.setting);
+        std::string error;
+        descriptor.parse(descriptor.format(draft_), updated, error);
+    }
+    return updated;
+}
+
 void SettingsForm::move_focus(int step) {
     const auto visible = visible_fields();
     if (visible.empty()) {

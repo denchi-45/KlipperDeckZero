@@ -22,11 +22,11 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 | 状態表示(ライト) | 状態表示(ダーク) |
 |---|---|
-| ![](docs/images/status-printing-light.png) | ![](docs/images/status-printing-dark.png) |
+| ![印刷中の状態表示(ライト)](docs/images/status-printing-light.png) | ![印刷中の状態表示(ダーク)](docs/images/status-printing-dark.png) |
 
 | 接続待ち | 接続設定(`S`) |
 |---|---|
-| ![](docs/images/status-connecting.png) | ![](docs/images/settings-connection.png) |
+| ![Moonraker への接続待ち画面](docs/images/status-connecting.png) | ![接続設定画面](docs/images/settings-connection.png) |
 
 | キー | 動作 |
 |---|---|

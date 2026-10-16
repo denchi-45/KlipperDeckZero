@@ -190,13 +190,14 @@ bool SettingsScreen::handle_key(uint32_t key, bool long_pressed) {
 }
 
 void SettingsScreen::submit() {
-    const auto changed = app::changed_settings(store_.config(), form_.draft());
+    const auto updated = form_.apply_to(store_.config());
+    const auto changed = app::changed_settings(store_.config(), updated);
     if (changed.empty() && !store_.has_unsaved()) {
         set_message("No changes", false);
         return;
     }
     std::string error;
-    if (store_.apply(form_.draft(), error)) {
+    if (store_.apply(updated, error)) {
         set_message("Saved. Connecting...", false);
     }
     else {
