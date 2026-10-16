@@ -171,10 +171,15 @@ private:
             return true;
         }
 
+        if ((key == 'd' || key == 'D') && !long_pressed) {
+            view_model_.toggle_dark_mode();
+            return true;
+        }
+
         const bool is_escape = key == LV_KEY_ESC;
         const bool is_home_exit_key =
             key == '4' &&
-            ((!long_pressed && view_model_.current_page() == model::AppPage::Apple) ||
+            ((!long_pressed && view_model_.current_page() == model::AppPage::Status) ||
              (long_pressed && exit_key_pressed_ == key));
         if (!is_escape && !is_home_exit_key) {
             return false;
@@ -188,7 +193,7 @@ private:
         }
         else {
             exit_key_pressed_ = key;
-            exit_armed_ = view_model_.current_page() == model::AppPage::Apple;
+            exit_armed_ = view_model_.current_page() == model::AppPage::Status;
             if (exit_armed_) {
                 toast_->show_persistent_highlighted("Hold ",
                                                     "ESC",
@@ -207,8 +212,8 @@ private:
         if (exit_armed_) {
             toast_->hide();
         } else if (key == LV_KEY_ESC &&
-                   view_model_.current_page() == model::AppPage::Butter) {
-            view_model_.show_apple_page();
+                   view_model_.current_page() != model::AppPage::Status) {
+            view_model_.show_page(model::AppPage::Status);
         }
         exit_key_pressed_ = 0;
         exit_armed_ = false;
@@ -331,7 +336,11 @@ int Application::run() {
     ShortcutController shortcuts(view_model, assets);
 
     PrinterService printer_service(config.moonraker);
+    printer_service.set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
+        view_model.update_printer(session);
+    });
     printer_service.start();
+    view_model.update_printer(printer_service.session());
 
     DarkModePersistence dark_mode_persistence{user_config_path, view_model.is_dark_mode()};
     auto* dark_mode_observer = lv_subject_add_observer(view_model.dark_mode_subject(),

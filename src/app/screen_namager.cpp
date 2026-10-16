@@ -6,8 +6,8 @@
 
 #include "screen_manager.h"
 
-#include "apple_screen.h"
-#include "butter_screen.h"
+#include "placeholder_screen.h"
+#include "status_screen.h"
 
 namespace app {
 namespace {
@@ -53,15 +53,14 @@ void ScreenManager::start() {
                                                          nullptr);
 }
 
-void ScreenManager::show_apple_screen() {
-    load_screen(std::make_unique<screen::AppleScreen>(view_model_, assets_));
-    loaded_page_ = model::AppPage::Apple;
-    has_loaded_page_ = true;
-}
-
-void ScreenManager::show_butter_screen() {
-    load_screen(std::make_unique<screen::ButterScreen>(view_model_, assets_));
-    loaded_page_ = model::AppPage::Butter;
+void ScreenManager::show_screen(model::AppPage page) {
+    if (page == model::AppPage::Status) {
+        load_screen(std::make_unique<screen::StatusScreen>(view_model_, assets_));
+    }
+    else {
+        load_screen(std::make_unique<screen::PlaceholderScreen>(view_model_, assets_, page));
+    }
+    loaded_page_ = page;
     has_loaded_page_ = true;
 }
 
@@ -82,12 +81,7 @@ void ScreenManager::flush_requested_page() {
         return;
     }
 
-    if (requested_page_ == model::AppPage::Butter) {
-        show_butter_screen();
-        return;
-    }
-
-    show_apple_screen();
+    show_screen(requested_page_);
 }
 
 lv_obj_t* ScreenManager::current_screen() const {

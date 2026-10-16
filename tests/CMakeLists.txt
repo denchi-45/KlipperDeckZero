@@ -24,12 +24,15 @@ add_executable(kdz_tests
     test_jsonrpc_client.cpp
     test_session.cpp
     test_config.cpp
+    test_printer_format.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
+    "${KDZ_SOURCE_DIR}/src/viewmodel/printer_format.cpp"
 )
 
 target_include_directories(kdz_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${KDZ_SOURCE_DIR}/src/app"
+    "${KDZ_SOURCE_DIR}/src/viewmodel"
 )
 
 target_link_libraries(kdz_tests PRIVATE kdz_moonraker)

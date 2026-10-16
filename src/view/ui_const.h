@@ -34,6 +34,19 @@ constexpr const char* ICON_BAT_LOW            = "\uE7BE";
 constexpr const char* ICON_BAT_EMPTY          = "\uE7C6";
 constexpr const char* ICON_BAT_CHARGING       = "\uE0BC";
 
+// Phosphor 2.1 codepoints used by the printer pages.
+constexpr const char* ICON_GAUGE              = "\uE628";
+constexpr const char* ICON_THERMOMETER        = "\uE5C6";
+constexpr const char* ICON_DROP               = "\uE210";
+constexpr const char* ICON_FILES              = "\uE710";
+constexpr const char* ICON_PLAY_PAUSE         = "\uE8BE";
+constexpr const char* ICON_FIRE               = "\uE242";
+constexpr const char* ICON_CLOCK              = "\uE19A";
+constexpr const char* ICON_HOURGLASS          = "\uE2B8";
+constexpr const char* ICON_STACK              = "\uE466";
+constexpr const char* ICON_PLUGS              = "\uEB56";
+constexpr const char* ICON_WARNING            = "\uE4E0";
+
 namespace color {
 
 // Naive UI common color tokens, flattened to solid RGB values for LVGL.

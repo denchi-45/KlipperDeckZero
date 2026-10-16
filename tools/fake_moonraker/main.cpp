@@ -7,8 +7,9 @@
  * WebSocket (ws://127.0.0.1:7125/websocket) and simulates heaters, extrusion
  * checks, printing progress, emergency stop and firmware restart.
  *
- * Usage: fake_moonraker [--host 127.0.0.1] [--port 7125] [--speed 20]
+ * Usage: fake_moonraker [--host 127.0.0.1] [--port 7125] [--speed 20] [--print <file>]
  *   --speed  print time multiplier (simulated seconds per real second)
+ *   --print  start printing one of the fake files immediately (e.g. 3DBenchy_PLA_0.2mm.gcode)
  */
 
 #include <ixwebsocket/IXNetSystem.h>
@@ -62,6 +63,11 @@ class Printer {
 public:
     explicit Printer(double speed) : speed_(speed) {
         reset_objects();
+    }
+
+    json start_print(const std::string& filename) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return print_start(filename);
     }
 
     // Returns {result} or {error}; may queue notifications.
@@ -546,8 +552,17 @@ int main(int argc, char** argv) {
     std::string host = "127.0.0.1";
     int port = 7125;
     double speed = 20.0;
-    for (int i = 1; i + 1 < argc; i += 2) {
+    std::string autostart;
+    for (int i = 1; i < argc; i += 2) {
         const std::string flag = argv[i];
+        if (flag != "--host" && flag != "--port" && flag != "--speed" && flag != "--print") {
+            std::fprintf(stderr, "unknown option: %s\n", flag.c_str());
+            return 2;
+        }
+        if (i + 1 >= argc) {
+            std::fprintf(stderr, "missing value for %s\n", flag.c_str());
+            return 2;
+        }
         if (flag == "--host") {
             host = argv[i + 1];
         }
@@ -556,6 +571,9 @@ int main(int argc, char** argv) {
         }
         else if (flag == "--speed") {
             speed = std::atof(argv[i + 1]);
+        }
+        else if (flag == "--print") {
+            autostart = argv[i + 1];
         }
     }
 
@@ -566,6 +584,13 @@ int main(int argc, char** argv) {
     ix::initNetSystem();
 
     Printer printer(speed);
+    if (!autostart.empty()) {
+        const auto started = printer.start_print(autostart);
+        if (started.contains("error")) {
+            std::fprintf(stderr, "--print: %s\n", started["error"]["message"].get<std::string>().c_str());
+            return 1;
+        }
+    }
     ix::WebSocketServer server(port, host);
     std::atomic<int> next_connection_id{1};
     std::mutex clients_mutex;

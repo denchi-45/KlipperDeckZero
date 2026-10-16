@@ -8,12 +8,20 @@
 
 namespace model {
 
-const char* BaseModel::app_title() const {
-    return "KlipperDeckZero";
-}
-
-const char* BaseModel::greeting() const {
-    return "Hello World";
+const char* page_title(AppPage page) {
+    switch (page) {
+        case AppPage::Status:
+            return "Status";
+        case AppPage::Temperature:
+            return "Temperature";
+        case AppPage::Extruder:
+            return "Extruder";
+        case AppPage::Files:
+            return "Files";
+        case AppPage::Control:
+            return "Print Control";
+    }
+    return "";
 }
 
 bool BaseModel::dark_mode() const {
@@ -32,13 +40,8 @@ AppPage BaseModel::current_page() const {
     return current_page_;
 }
 
-
 void BaseModel::set_current_page(AppPage page) {
     current_page_ = page;
-}
-
-void BaseModel::toggle_page() {
-    current_page_ = current_page_ == AppPage::Apple ? AppPage::Butter : AppPage::Apple;
 }
 
 } // namespace model
