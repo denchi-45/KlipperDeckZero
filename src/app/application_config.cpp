@@ -145,10 +145,13 @@ bool save_application_config(const std::string& path,
     }
 
     std::vector<std::string> lines;
-    std::ifstream input(path);
-    std::string line;
-    while (std::getline(input, line)) {
-        lines.push_back(line);
+    {
+        // Closed before the replace below; Windows refuses to replace a file that is still open.
+        std::ifstream input(path);
+        std::string line;
+        while (std::getline(input, line)) {
+            lines.push_back(line);
+        }
     }
 
     std::vector<std::string> updated;
