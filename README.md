@@ -20,9 +20,13 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 ## 画面と操作
 
-| 状態表示(ライト) | 状態表示(ダーク) | 接続待ち |
-|---|---|---|
-| ![](docs/images/status-printing-light.png) | ![](docs/images/status-printing-dark.png) | ![](docs/images/status-connecting.png) |
+| 状態表示(ライト) | 状態表示(ダーク) |
+|---|---|
+| ![](docs/images/status-printing-light.png) | ![](docs/images/status-printing-dark.png) |
+
+| 接続待ち | 接続設定(`S`) |
+|---|---|
+| ![](docs/images/status-connecting.png) | ![](docs/images/settings-connection.png) |
 
 | キー | 動作 |
 |---|---|
@@ -31,7 +35,9 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 | `ESC` | ホームへ戻る |
 | `S` | 接続設定(この端末の Klipper / ネットワーク上のプリンター) |
 | `D` | ライト / ダーク切替 |
-| `Fn`+`H` / `Fn`+`J` | ヘルプ / スクリーンショット |
+| `Fn`+`H` / `Fn`+`J` | ヘルプ / スクリーンショット(`~/Pictures/Screenshots` に PNG 保存。シミュレーターは `PrintScreen` キー) |
+
+接続設定画面では `↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket)」から選べ、「Save & connect」で保存して接続し直します。
 
 ## ロードマップ
 
