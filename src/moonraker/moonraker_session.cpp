@@ -1,0 +1,347 @@
+/*
+ * SPDX-License-Identifier: MIT
+ */
+
+#include "moonraker_session.h"
+
+#include "status_merge.h"
+
+#include <utility>
+
+namespace moonraker {
+
+namespace {
+constexpr std::size_t kMaxGcodeResponses = 32;
+} // namespace
+
+const char* to_string(SessionState state) {
+    switch (state) {
+        case SessionState::Stopped:
+            return "stopped";
+        case SessionState::Connecting:
+            return "connecting";
+        case SessionState::Initializing:
+            return "initializing";
+        case SessionState::WaitingKlippy:
+            return "waiting_klippy";
+        case SessionState::KlippyError:
+            return "klippy_error";
+        case SessionState::Ready:
+            return "ready";
+    }
+    return "unknown";
+}
+
+MoonrakerSession::MoonrakerSession(std::unique_ptr<Transport> transport, SessionOptions options)
+    : client_(std::move(transport)), options_(std::move(options)) {
+    client_.set_connection_handler([this](bool connected, const std::string& reason) {
+        on_connection(connected, reason);
+    });
+    client_.set_notification_handler([this](const std::string& method, const Json& params) {
+        on_notification(method, params);
+    });
+}
+
+void MoonrakerSession::start() {
+    if (state_ != SessionState::Stopped) {
+        return;
+    }
+    reconnect_scheduled_ = false;
+    server_info_scheduled_ = false;
+    set_state(SessionState::Connecting);
+    client_.open();
+}
+
+void MoonrakerSession::stop() {
+    reconnect_scheduled_ = false;
+    server_info_scheduled_ = false;
+    ++connection_epoch_;
+    // Mark stopped first: close() reports the disconnect synchronously.
+    set_state(SessionState::Stopped);
+    client_.close();
+}
+
+void MoonrakerSession::poll(Clock::time_point now) {
+    now_ = now;
+    client_.poll(now);
+
+    if (reconnect_scheduled_ && now >= reconnect_at_) {
+        reconnect_scheduled_ = false;
+        set_state(SessionState::Connecting);
+        client_.open();
+    }
+    if (server_info_scheduled_ && now >= server_info_at_) {
+        server_info_scheduled_ = false;
+        query_server_info();
+    }
+
+    if (dirty_) {
+        dirty_ = false;
+        ++revision_;
+        if (change_listener_) {
+            change_listener_();
+        }
+    }
+}
+
+SessionState MoonrakerSession::session_state() const {
+    return state_;
+}
+
+const model::PrinterState& MoonrakerSession::printer() const {
+    return printer_;
+}
+
+uint32_t MoonrakerSession::revision() const {
+    return revision_;
+}
+
+const std::string& MoonrakerSession::last_error() const {
+    return last_error_;
+}
+
+std::string MoonrakerSession::endpoint() const {
+    return client_.describe();
+}
+
+void MoonrakerSession::set_change_listener(ChangeListener listener) {
+    change_listener_ = std::move(listener);
+}
+
+std::deque<std::string> MoonrakerSession::take_gcode_responses() {
+    return std::exchange(gcode_responses_, {});
+}
+
+bool MoonrakerSession::take_filelist_changed() {
+    return std::exchange(filelist_changed_, false);
+}
+
+void MoonrakerSession::on_connection(bool connected, const std::string& reason) {
+    if (state_ == SessionState::Stopped) {
+        return;
+    }
+
+    ++connection_epoch_;
+    server_info_scheduled_ = false;
+
+    if (connected) {
+        last_error_.clear();
+        set_state(SessionState::Initializing);
+        identify();
+        return;
+    }
+
+    set_error(reason);
+    printer_.klippy_state = model::KlippyState::Unknown;
+    set_state(SessionState::Connecting);
+    reconnect_scheduled_ = true;
+    reconnect_at_ = now_ + options_.reconnect_delay;
+}
+
+void MoonrakerSession::identify() {
+    Json params = {
+        {"client_name", options_.client_name},
+        {"version", options_.client_version},
+        {"type", "display"},
+        {"url", options_.client_url},
+    };
+    if (!options_.api_key.empty()) {
+        params["api_key"] = options_.api_key;
+    }
+
+    const auto epoch = connection_epoch_;
+    client_.call("server.connection.identify", std::move(params), [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
+            return;
+        }
+        if (!response.ok) {
+            // Older Moonraker versions or unix sockets without identify support still work.
+            set_error("identify failed: " + response.error.message);
+        }
+        query_server_info();
+    });
+}
+
+void MoonrakerSession::query_server_info() {
+    const auto epoch = connection_epoch_;
+    client_.call("server.info", [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
+            return;
+        }
+        if (!response.ok) {
+            set_error("server.info failed: " + response.error.message);
+            schedule_server_info(options_.klippy_retry_delay);
+            return;
+        }
+
+        const auto klippy = model::parse_klippy_state(
+            response.result.value("klippy_state", std::string("unknown")));
+        if (printer_.klippy_state != klippy) {
+            printer_.klippy_state = klippy;
+            mark_changed();
+        }
+
+        switch (klippy) {
+            case model::KlippyState::Ready:
+                subscribe();
+                break;
+            case model::KlippyState::Error:
+            case model::KlippyState::Shutdown:
+                set_state(SessionState::KlippyError);
+                query_printer_info();
+                // Recovery is announced by notify_klippy_ready; poll slowly as a fallback.
+                schedule_server_info(options_.klippy_retry_delay * 5);
+                break;
+            default:
+                set_state(SessionState::WaitingKlippy);
+                schedule_server_info(options_.klippy_retry_delay);
+                break;
+        }
+    });
+}
+
+void MoonrakerSession::query_printer_info() {
+    const auto epoch = connection_epoch_;
+    client_.call("printer.info", [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_ || !response.ok) {
+            return;
+        }
+        const auto message = response.result.value("state_message", std::string());
+        if (printer_.state_message != message) {
+            printer_.state_message = message;
+            mark_changed();
+        }
+    });
+}
+
+void MoonrakerSession::subscribe() {
+    const auto epoch = connection_epoch_;
+    Json params = {{"objects", subscription_objects()}};
+    client_.call("printer.objects.subscribe", std::move(params), [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
+            return;
+        }
+        if (!response.ok) {
+            set_error("subscribe failed: " + response.error.message);
+            schedule_server_info(options_.klippy_retry_delay);
+            return;
+        }
+        if (apply_status(printer_, response.result.value("status", Json::object()))) {
+            mark_changed();
+        }
+        // The webhooks snapshot may still say "startup" in rare races; trust server.info.
+        printer_.klippy_state = model::KlippyState::Ready;
+        set_state(SessionState::Ready);
+    });
+}
+
+void MoonrakerSession::schedule_server_info(std::chrono::milliseconds delay) {
+    server_info_scheduled_ = true;
+    server_info_at_ = now_ + delay;
+}
+
+void MoonrakerSession::on_notification(const std::string& method, const Json& params) {
+    if (method == "notify_status_update") {
+        if (params.is_array() && !params.empty() && apply_status(printer_, params[0])) {
+            mark_changed();
+        }
+        return;
+    }
+
+    if (method == "notify_gcode_response") {
+        if (params.is_array()) {
+            for (const auto& line : params) {
+                if (line.is_string()) {
+                    gcode_responses_.push_back(line.get<std::string>());
+                }
+            }
+            while (gcode_responses_.size() > kMaxGcodeResponses) {
+                gcode_responses_.pop_front();
+            }
+            mark_changed();
+        }
+        return;
+    }
+
+    if (method == "notify_klippy_ready") {
+        server_info_scheduled_ = false;
+        query_server_info();
+        return;
+    }
+
+    if (method == "notify_klippy_shutdown") {
+        printer_.klippy_state = model::KlippyState::Shutdown;
+        set_state(SessionState::KlippyError);
+        query_printer_info();
+        mark_changed();
+        return;
+    }
+
+    if (method == "notify_klippy_disconnected") {
+        printer_.klippy_state = model::KlippyState::Disconnected;
+        set_state(SessionState::WaitingKlippy);
+        schedule_server_info(options_.klippy_retry_delay);
+        mark_changed();
+        return;
+    }
+
+    if (method == "notify_filelist_changed") {
+        filelist_changed_ = true;
+        mark_changed();
+    }
+}
+
+void MoonrakerSession::send_gcode(const std::string& script, ResultHandler handler) {
+    call("printer.gcode.script", {{"script", script}}, std::move(handler), options_.gcode_timeout);
+}
+
+void MoonrakerSession::print_start(const std::string& filename, ResultHandler handler) {
+    call("printer.print.start", {{"filename", filename}}, std::move(handler));
+}
+
+void MoonrakerSession::print_pause(ResultHandler handler) {
+    call("printer.print.pause", Json(), std::move(handler));
+}
+
+void MoonrakerSession::print_resume(ResultHandler handler) {
+    call("printer.print.resume", Json(), std::move(handler));
+}
+
+void MoonrakerSession::print_cancel(ResultHandler handler) {
+    call("printer.print.cancel", Json(), std::move(handler));
+}
+
+void MoonrakerSession::emergency_stop(ResultHandler handler) {
+    call("printer.emergency_stop", Json(), std::move(handler));
+}
+
+void MoonrakerSession::firmware_restart(ResultHandler handler) {
+    call("printer.firmware_restart", Json(), std::move(handler));
+}
+
+void MoonrakerSession::call(const std::string& method,
+                            Json params,
+                            ResultHandler handler,
+                            std::chrono::milliseconds timeout) {
+    client_.call(method, std::move(params), std::move(handler), timeout);
+}
+
+void MoonrakerSession::set_state(SessionState state) {
+    if (state_ != state) {
+        state_ = state;
+        mark_changed();
+    }
+}
+
+void MoonrakerSession::set_error(const std::string& message) {
+    if (last_error_ != message) {
+        last_error_ = message;
+        mark_changed();
+    }
+}
+
+void MoonrakerSession::mark_changed() {
+    dirty_ = true;
+}
+
+} // namespace moonraker

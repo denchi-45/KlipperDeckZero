@@ -51,6 +51,37 @@ REMOTE_USER=pi REMOTE_HOST=<ip> ./deploy.sh
 - デスクトップ: `config/klipper-deck-zero.conf`
 - 実機: `/etc/klipper-deck-zero.conf`(ユーザー設定は `~/.config/klipper-deck-zero/klipper-deck-zero.conf`)
 
+```ini
+[moonraker]
+# unix | websocket(既定: 実機=unix, シミュレーター=websocket)
+transport=websocket
+socket_path=~/printer_data/comms/moonraker.sock
+url=ws://127.0.0.1:7125/websocket
+# trusted_clients に入っていない場合のみ
+#api_key=
+```
+
+## プリンターなしで動かす(疑似 Moonraker)
+
+デスクトップビルドには `fake_moonraker` が含まれます。ヒーター昇温・押し出し温度チェック・印刷進捗・非常停止・FW再起動を模擬します。
+
+```powershell
+./build/mingw64/Debug/fake_moonraker.exe --speed 20   # ws://127.0.0.1:7125/websocket
+./build/mingw64/Debug/klipper-deck-zero.exe
+```
+
+実機につなぐ場合は `url=ws://<プリンターIP>:7125/websocket` に変更します。
+
+## テスト
+
+Moonraker クライアント(JSON-RPC / 状態マージ / 接続シーケンス)と設定読み込みのユニットテストです。LVGL なしでも単独でビルドできます。
+
+```powershell
+ctest --test-dir build/mingw64 -C Debug            # プリセットビルドに含まれる
+# もしくは単独で
+cmake -S tests -B build/tests -G Ninja && cmake --build build/tests && ./build/tests/kdz_tests
+```
+
 ## ドキュメント
 
 - [Moonraker API × CardputerZero 技術調査メモ](docs/moonraker_tech_notes.md)

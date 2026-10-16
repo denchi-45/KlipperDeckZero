@@ -11,6 +11,7 @@
 #include "help_popup.h"
 #include "logger.h"
 #include "linux_input.h"
+#include "printer_service.h"
 #include "screenshot_service.h"
 #include "screen_manager.h"
 #include "base_viewmodel.h"
@@ -21,6 +22,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 #if USE_DESKTOP
 #include "desktop_simulator_frame.h"
@@ -281,24 +283,28 @@ int Application::run() {
 
     viewmodel::BaseViewModel view_model;
     const std::string user_config_path = writable_config_path();
-    std::string loaded_config_path = APP_CONFIG_FILE;
+
+    // The system config is the base; the user config only overrides the keys it contains, so
+    // persisting dark_mode there never hides the [moonraker] settings in the system config.
+    std::vector<std::string> config_paths{APP_CONFIG_FILE};
     if (user_config_path != APP_CONFIG_FILE) {
         std::error_code filesystem_error;
         if (std::filesystem::is_regular_file(user_config_path, filesystem_error)) {
-            loaded_config_path = user_config_path;
+            config_paths.push_back(user_config_path);
         }
     }
 
     ApplicationConfig config;
-    std::string config_error;
-    if (load_application_config(loaded_config_path, config, config_error)) {
-        view_model.set_dark_mode(config.dark_mode);
-        LOG_INFO("loaded config: {} (dark_mode={})",
-                 loaded_config_path,
-                 config.dark_mode ? "yes" : "no");
-    } else {
-        LOG_WARN("failed to load config {}: {}; using defaults", loaded_config_path, config_error);
+    for (const auto& config_path : config_paths) {
+        std::string config_error;
+        if (load_application_config(config_path, config, config_error)) {
+            LOG_INFO("loaded config: {}", config_path);
+        } else {
+            LOG_WARN("failed to load config {}: {}", config_path, config_error);
+        }
     }
+    view_model.set_dark_mode(config.dark_mode);
+    LOG_INFO("dark_mode={}", config.dark_mode ? "yes" : "no");
 
 #if USE_DESKTOP
     DesktopSimulatorFrame simulator_frame(assets);
@@ -323,6 +329,9 @@ int Application::run() {
     ScreenManager screen_manager(view_model, assets);
     screen_manager.start();
     ShortcutController shortcuts(view_model, assets);
+
+    PrinterService printer_service(config.moonraker);
+    printer_service.start();
 
     DarkModePersistence dark_mode_persistence{user_config_path, view_model.is_dark_mode()};
     auto* dark_mode_observer = lv_subject_add_observer(view_model.dark_mode_subject(),

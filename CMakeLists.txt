@@ -27,6 +27,8 @@ set(APP_DRM_DEVICE "/dev/dri/card0" CACHE STRING "Linux DRM device path used whe
 set(APP_DRM_CONNECTOR_ID "-1" CACHE STRING "DRM connector id used when APP_USE_DRM=ON; -1 auto-selects")
 set(APP_USE_DRM OFF CACHE BOOL "Enable LVGL Linux DRM/KMS backend for embedded Linux builds")
 set(CM0_ALLOW_FETCH_DEPS ON CACHE BOOL "Allow downloading missing CM0 BSP/dependencies during cross builds")
+option(KDZ_BUILD_TESTS "Build unit tests for the Moonraker client" ${USE_DESKTOP})
+option(KDZ_BUILD_FAKE_MOONRAKER "Build the fake Moonraker server used with the desktop simulator" ${USE_DESKTOP})
 # Export compile commands
 # Used for IDE IntelliSense
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json" FORCE)
@@ -393,7 +395,15 @@ else()
 
 endif()
 
-
+# ====================================================
+# Moonraker client (JSON-RPC over WebSocket / unix socket)
+# ====================================================
+if(NOT USE_DESKTOP)
+    set(KDZ_EXTRA_INCLUDE_DIRS ${CM0_MULTIARCH_INCLUDE_DIRS})
+    set(KDZ_THREAD_LIBS ${PTHREAD_LIBRARY})
+endif()
+set(KDZ_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+include(cmake/moonraker.cmake)
 
 # ====================================================
 # Platform sources
@@ -589,12 +599,14 @@ target_compile_definitions(${PROJECT_NAME}_core
         APP_FRAMEBUFFER_DEVICE="${APP_FRAMEBUFFER_DEVICE}"
         APP_DRM_DEVICE="${APP_DRM_DEVICE}"
         APP_DRM_CONNECTOR_ID=${APP_DRM_CONNECTOR_ID}
+        APP_VERSION="${PROJECT_VERSION}"
 )
 
 target_link_libraries(${PROJECT_NAME}_core
     PUBLIC
         lvgl
         logger
+        kdz_moonraker
         ${PROJECT_NAME}_view
         ${PROJECT_NAME}_viewmodel
         ${PROJECT_NAME}_platform
@@ -628,6 +640,19 @@ target_link_libraries(${PROJECT_NAME}
         ${PROJECT_NAME}_view
         ${PROJECT_NAME}_viewmodel
 )
+
+# ====================================================
+# Tests / development tools
+# ====================================================
+if(KDZ_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
+if(KDZ_BUILD_FAKE_MOONRAKER)
+    add_executable(fake_moonraker tools/fake_moonraker/main.cpp)
+    target_link_libraries(fake_moonraker PRIVATE ixwebsocket nlohmann_json::nlohmann_json)
+endif()
 
 # Package deb
 include(cmake/cm0-package.cmake)
