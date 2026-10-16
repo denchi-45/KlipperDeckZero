@@ -14,10 +14,12 @@
 #include "printer_service.h"
 #include "screenshot_service.h"
 #include "screen_manager.h"
+#include "settings_store.h"
 #include "base_viewmodel.h"
 #include "theme.h"
 #include "toast.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
@@ -62,11 +64,6 @@ void quit_requested_observer(lv_observer_t* observer, lv_subject_t* subject) {
     }
 }
 
-struct DarkModePersistence {
-    std::string config_path;
-    bool last_dark_mode;
-};
-
 std::string writable_config_path() {
 #if USE_DESKTOP
     return APP_CONFIG_FILE;
@@ -88,26 +85,22 @@ std::string writable_config_path() {
 }
 
 void persist_dark_mode_observer(lv_observer_t* observer, lv_subject_t* subject) {
-    auto* persistence = static_cast<DarkModePersistence*>(lv_observer_get_user_data(observer));
-    if (!persistence) {
+    auto* store = static_cast<SettingsStore*>(lv_observer_get_user_data(observer));
+    if (!store) {
         return;
     }
-    const bool dark_mode = lv_subject_get_int(subject) != 0;
-    if (dark_mode == persistence->last_dark_mode) {
-        return;
-    }
-    persistence->last_dark_mode = dark_mode;
-
-    ApplicationConfig config;
-    config.dark_mode = dark_mode;
+    auto config = store->config();
+    config.dark_mode = lv_subject_get_int(subject) != 0;
     std::string error;
-    if (save_application_config(persistence->config_path, config, {Setting::DarkMode}, error)) {
-        LOG_INFO("saved config: {} (dark_mode={})",
-                 persistence->config_path,
-                 config.dark_mode ? "yes" : "no");
-    } else {
-        LOG_WARN("failed to save config {}: {}", persistence->config_path, error);
+    if (!store->apply(config, error)) {
+        LOG_WARN("failed to save config {}: {}", store->user_config_path(), error);
     }
+}
+
+bool has_moonraker_setting(const std::vector<Setting>& settings) {
+    return std::any_of(settings.begin(), settings.end(), [](Setting setting) {
+        return std::string(setting_descriptor(setting).section) == "moonraker";
+    });
 }
 
 class ShortcutController {
@@ -171,8 +164,17 @@ private:
             return true;
         }
 
+        if (platform::dispatch_screen_key(key, long_pressed)) {
+            return true;
+        }
+
         if ((key == 'd' || key == 'D') && !long_pressed) {
             view_model_.toggle_dark_mode();
+            return true;
+        }
+
+        if ((key == 's' || key == 'S') && !long_pressed) {
+            view_model_.show_page(model::AppPage::Settings);
             return true;
         }
 
@@ -331,21 +333,35 @@ int Application::run() {
     simulator_frame.bind_dark_mode(view_model.dark_mode_subject());
 #endif
 
-    ScreenManager screen_manager(view_model, assets);
+    SettingsStore settings(config, user_config_path);
+
+    ScreenManager screen_manager(view_model, assets, settings);
     screen_manager.start();
     ShortcutController shortcuts(view_model, assets);
 
-    PrinterService printer_service(config.moonraker);
-    printer_service.set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
-        view_model.update_printer(session);
-    });
-    printer_service.start();
-    view_model.update_printer(printer_service.session());
+    // Recreated whenever the connection settings change, so new settings apply without a restart.
+    std::unique_ptr<PrinterService> printer_service;
+    const auto connect = [&view_model, &printer_service](const MoonrakerConfig& moonraker) {
+        printer_service.reset();
+        printer_service = std::make_unique<PrinterService>(moonraker);
+        printer_service->set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
+            view_model.update_printer(session);
+        });
+        printer_service->start();
+        view_model.update_printer(printer_service->session());
+    };
+    connect(settings.config().moonraker);
+    settings.add_change_listener(
+        [&connect](const ApplicationConfig& updated, const std::vector<Setting>& changed) {
+            LOG_INFO("saved {} setting(s)", changed.size());
+            if (has_moonraker_setting(changed)) {
+                connect(updated.moonraker);
+            }
+        });
 
-    DarkModePersistence dark_mode_persistence{user_config_path, view_model.is_dark_mode()};
     auto* dark_mode_observer = lv_subject_add_observer(view_model.dark_mode_subject(),
                                                         persist_dark_mode_observer,
-                                                        &dark_mode_persistence);
+                                                        &settings);
 
     bool running = true;
     auto* quit_observer = lv_subject_add_observer(view_model.quit_requested_subject(),

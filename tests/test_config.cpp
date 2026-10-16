@@ -102,6 +102,27 @@ TEST_CASE("config: invalid port is rejected") {
     }
 }
 
+TEST_CASE("config: hosts that make a broken URL are rejected") {
+    for (const char* host : {"192.168.1.50", "mainsailos.local", "fe80::1", "[fe80::1]"}) {
+        const auto path = write_temp_config("kdz_test_host.conf",
+                                            std::string("[moonraker]\nhost=") + host + "\n");
+        app::ApplicationConfig config;
+        std::string error;
+        CHECK(app::load_application_config(path, config, error));
+        CHECK_EQ(config.moonraker.host, std::string(host));
+        std::remove(path.c_str());
+    }
+    for (const char* host : {"[]", "[example.com]", "[fe80::1", "foo:bar", "a]b"}) {
+        const auto path = write_temp_config("kdz_test_host.conf",
+                                            std::string("[moonraker]\nhost=") + host + "\n");
+        app::ApplicationConfig config;
+        std::string error;
+        CHECK(!app::load_application_config(path, config, error));
+        CHECK(error.find("host") != std::string::npos);
+        std::remove(path.c_str());
+    }
+}
+
 TEST_CASE("config: saving dark_mode keeps the moonraker section") {
     const auto path = write_temp_config("kdz_test_save.conf",
                                         "[application]\n"
@@ -182,6 +203,22 @@ TEST_CASE("config: saving creates missing sections") {
     CHECK(loaded.moonraker.transport == app::MoonrakerTransportKind::WebSocket);
     std::remove(path.c_str());
 }
+
+#ifndef _WIN32
+TEST_CASE("config: saving makes the file readable only by its owner") {
+    const auto path = write_temp_config("kdz_test_save_private.conf", "[moonraker]\n");
+    namespace fs = std::filesystem;
+    fs::permissions(path, fs::perms::owner_read | fs::perms::owner_write | fs::perms::group_read |
+                              fs::perms::others_read);
+
+    app::ApplicationConfig config;
+    config.moonraker.api_key = "secret";
+    std::string error;
+    CHECK(app::save_application_config(path, config, {app::Setting::MoonrakerApiKey}, error));
+    CHECK(fs::status(path).permissions() == (fs::perms::owner_read | fs::perms::owner_write));
+    std::remove(path.c_str());
+}
+#endif
 
 TEST_CASE("config: expand_user_path") {
     CHECK_EQ(app::expand_user_path("/abs/path"), std::string("/abs/path"));

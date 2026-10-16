@@ -36,7 +36,7 @@ private:
 
     viewmodel::BaseViewModel& view_model_;
     app::AssetManager& assets_;
-    std::array<std::unique_ptr<IconButton>, model::kAppPageCount> icon_buttons_;
+    std::array<std::unique_ptr<IconButton>, model::kNavPageCount> icon_buttons_;
     lv_font_t* icon_font_{nullptr};
     lv_observer_t* page_observer_{nullptr};
     lv_observer_t* theme_observer_{nullptr};

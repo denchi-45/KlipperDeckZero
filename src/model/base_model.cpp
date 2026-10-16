@@ -20,6 +20,8 @@ const char* page_title(AppPage page) {
             return "Files";
         case AppPage::Control:
             return "Print Control";
+        case AppPage::Settings:
+            return "Connection";
     }
     return "";
 }

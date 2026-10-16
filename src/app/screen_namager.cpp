@@ -7,6 +7,7 @@
 #include "screen_manager.h"
 
 #include "placeholder_screen.h"
+#include "settings_screen.h"
 #include "status_screen.h"
 
 namespace app {
@@ -30,8 +31,10 @@ void current_page_observer(lv_observer_t* observer, lv_subject_t* subject) {
 
 } // namespace
 
-ScreenManager::ScreenManager(viewmodel::BaseViewModel& view_model, AssetManager& assets)
-    : view_model_(view_model), assets_(assets) {}
+ScreenManager::ScreenManager(viewmodel::BaseViewModel& view_model,
+                             AssetManager& assets,
+                             SettingsStore& settings)
+    : view_model_(view_model), assets_(assets), settings_(settings) {}
 
 ScreenManager::~ScreenManager() {
     lv_async_call_cancel(flush_requested_page_async, this);
@@ -56,6 +59,9 @@ void ScreenManager::start() {
 void ScreenManager::show_screen(model::AppPage page) {
     if (page == model::AppPage::Status) {
         load_screen(std::make_unique<screen::StatusScreen>(view_model_, assets_));
+    }
+    else if (page == model::AppPage::Settings) {
+        load_screen(std::make_unique<screen::SettingsScreen>(view_model_, assets_, settings_));
     }
     else {
         load_screen(std::make_unique<screen::PlaceholderScreen>(view_model_, assets_, page));

@@ -20,17 +20,24 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 ## 画面と操作
 
-| 状態表示(ライト) | 状態表示(ダーク) | 接続待ち |
-|---|---|---|
-| ![](docs/images/status-printing-light.png) | ![](docs/images/status-printing-dark.png) | ![](docs/images/status-connecting.png) |
+| 状態表示(ライト) | 状態表示(ダーク) |
+|---|---|
+| ![印刷中の状態表示(ライト)](docs/images/status-printing-light.png) | ![印刷中の状態表示(ダーク)](docs/images/status-printing-dark.png) |
+
+| 接続待ち | 接続設定(`S`) |
+|---|---|
+| ![Moonraker への接続待ち画面](docs/images/status-connecting.png) | ![接続設定画面](docs/images/settings-connection.png) |
 
 | キー | 動作 |
 |---|---|
 | `4` | 状態表示(ホーム)。ホームで長押し or `ESC` 長押しで終了 |
 | `5` / `6` / `7` / `8` | 温度 / 押し出し / ファイル / 印刷制御(第2段階で実装) |
 | `ESC` | ホームへ戻る |
+| `S` | 接続設定(この端末の Klipper / ネットワーク上のプリンター) |
 | `D` | ライト / ダーク切替 |
-| `Fn`+`H` / `Fn`+`J` | ヘルプ / スクリーンショット |
+| `Fn`+`H` / `Fn`+`J` | ヘルプ / スクリーンショット(`~/Pictures/Screenshots` に PNG 保存。シミュレーターは `PrintScreen` キー) |
+
+接続設定画面では `↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket)」から選べ、「Save & connect」で保存して接続し直します。
 
 ## ロードマップ
 

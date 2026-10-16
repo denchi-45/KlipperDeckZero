@@ -20,6 +20,12 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 namespace app {
@@ -33,6 +39,27 @@ std::string trim(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), is_not_space));
     value.erase(std::find_if(value.rbegin(), value.rend(), is_not_space).base(), value.end());
     return value;
+}
+
+bool is_ipv6_address(const std::string& value) {
+    in6_addr address{};
+    return inet_pton(AF_INET6, value.c_str(), &address) == 1;
+}
+
+// A host name or IPv4 address, or an IPv6 address with or without brackets. Anything else with
+// a colon or bracket would make websocket_url() build a broken URL.
+bool is_valid_host(const std::string& value) {
+    if (value.empty() || value.find_first_of(" \t/") != std::string::npos) {
+        return false;
+    }
+    if (value.front() == '[') {
+        return value.size() > 2 && value.back() == ']' &&
+               is_ipv6_address(value.substr(1, value.size() - 2));
+    }
+    if (value.find_first_of(":[]") != std::string::npos) {
+        return is_ipv6_address(value);
+    }
+    return true;
 }
 
 std::string lowercase(std::string value) {
@@ -102,13 +129,21 @@ const std::vector<SettingDescriptor> kSettings = {
                                                                                   : "websocket";
      }},
     {Setting::MoonrakerSocketPath, "moonraker", "socket_path",
-     [](const std::string& value, ApplicationConfig& config, std::string&) {
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         if (value.empty()) {
+             error = "expected a file path";
+             return false;
+         }
          config.moonraker.socket_path = value;
          return true;
      },
      [](const ApplicationConfig& config) { return config.moonraker.socket_path; }},
     {Setting::MoonrakerHost, "moonraker", "host",
-     [](const std::string& value, ApplicationConfig& config, std::string&) {
+     [](const std::string& value, ApplicationConfig& config, std::string& error) {
+         if (!is_valid_host(value)) {
+             error = "expected an IP address or host name";
+             return false;
+         }
          config.moonraker.host = value;
          return true;
      },
@@ -177,6 +212,23 @@ void replace_file(const std::filesystem::path& source,
     }
 #else
     std::filesystem::rename(source, target, error);
+#endif
+}
+
+// Creates an empty file readable only by its owner, since the config holds the Moonraker API key.
+// The mode is set on an existing file too, and survives the rename over the target. Windows
+// files inherit the ACL of the user's profile directory instead.
+bool create_private_file(const std::string& path) {
+#ifdef _WIN32
+    std::ofstream output(path, std::ios::trunc);
+    return static_cast<bool>(output);
+#else
+    const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        return false;
+    }
+    const bool ok = ::fchmod(fd, 0600) == 0;
+    return ::close(fd) == 0 && ok;
 #endif
 }
 
@@ -374,6 +426,10 @@ bool save_application_config(const std::string& path,
     // truncated config behind.
     const std::string temp_path = path + ".tmp";
     {
+        if (!create_private_file(temp_path)) {
+            error = "could not open file for writing";
+            return false;
+        }
         std::ofstream output(temp_path, std::ios::trunc);
         if (!output) {
             error = "could not open file for writing";
