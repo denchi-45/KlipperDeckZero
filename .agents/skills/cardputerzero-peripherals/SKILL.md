@@ -53,7 +53,7 @@ Describe:
 6. Verify the desktop build when applicable and the cp0-cross build for device-only code. Use a
    real device only when requested and available.
 7. Record the required upload permission, but update app-builder.json only during final release
-   preparation after the feature is shipped.
+   preparation: after the feature set and release artifact are final, and before upload.
 
 ## Safety Boundaries
 

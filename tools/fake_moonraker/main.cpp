@@ -623,9 +623,16 @@ int main(int argc, char** argv) {
                                     .dump());
                 return;
             }
-            const auto method = request["method"].get<std::string>();
-            std::printf("[%d] %s\n", connection_id, method.c_str());
-            json response = printer.handle(method, request.value("params", json::object()), connection_id);
+            json response;
+            try {
+                const auto method = request.at("method").get<std::string>();
+                std::printf("[%d] %s\n", connection_id, method.c_str());
+                response = printer.handle(method, request.value("params", json::object()), connection_id);
+            }
+            catch (const json::exception& e) {
+                // A wrong-shaped request must not escape the connection thread and terminate the server.
+                response = json{{"error", {{"code", -32602}, {"message", std::string("Invalid params: ") + e.what()}}}};
+            }
             response["jsonrpc"] = "2.0";
             response["id"] = request.value("id", json());
             socket.sendText(response.dump());

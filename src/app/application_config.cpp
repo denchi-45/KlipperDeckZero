@@ -13,6 +13,16 @@
 #include <fstream>
 #include <vector>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace app {
 namespace {
 
@@ -56,6 +66,23 @@ bool is_key(const std::string& line, const std::string& expected) {
     const auto separator = line.find('=');
     return separator != std::string::npos &&
            lowercase(trim(line.substr(0, separator))) == expected;
+}
+
+// Replaces target with source. std::filesystem::rename cannot overwrite an existing file with
+// MinGW's libstdc++, so Windows goes through MoveFileExW.
+void replace_file(const std::filesystem::path& source,
+                  const std::filesystem::path& target,
+                  std::error_code& error) {
+#ifdef _WIN32
+    if (MoveFileExW(source.c_str(), target.c_str(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        error.clear();
+    } else {
+        error.assign(static_cast<int>(GetLastError()), std::system_category());
+    }
+#else
+    std::filesystem::rename(source, target, error);
+#endif
 }
 
 } // namespace
@@ -156,10 +183,13 @@ bool save_application_config(const std::string& path,
     }
 
     std::vector<std::string> lines;
-    std::ifstream input(path);
-    std::string line;
-    while (std::getline(input, line)) {
-        lines.push_back(line);
+    {
+        // Closed before the replace below; Windows refuses to replace a file that is still open.
+        std::ifstream input(path);
+        std::string line;
+        while (std::getline(input, line)) {
+            lines.push_back(line);
+        }
     }
 
     std::vector<std::string> updated;
@@ -201,16 +231,33 @@ bool save_application_config(const std::string& path,
         updated.push_back(dark_mode_line);
     }
 
-    std::ofstream output(path, std::ios::trunc);
-    if (!output) {
-        error = "could not open file for writing";
-        return false;
+    // Write a sibling temp file and rename it over the target so a power loss never leaves a
+    // truncated config behind.
+    const std::string temp_path = path + ".tmp";
+    {
+        std::ofstream output(temp_path, std::ios::trunc);
+        if (!output) {
+            error = "could not open file for writing";
+            return false;
+        }
+        for (const auto& updated_line : updated) {
+            output << updated_line << '\n';
+        }
+        output.flush();
+        if (!output) {
+            error = "failed while writing file";
+            std::error_code remove_error;
+            std::filesystem::remove(temp_path, remove_error);
+            return false;
+        }
     }
-    for (const auto& updated_line : updated) {
-        output << updated_line << '\n';
-    }
-    if (!output) {
-        error = "failed while writing file";
+
+    std::error_code rename_error;
+    replace_file(temp_path, path, rename_error);
+    if (rename_error) {
+        error = "could not replace file: " + rename_error.message();
+        std::error_code remove_error;
+        std::filesystem::remove(temp_path, remove_error);
         return false;
     }
 

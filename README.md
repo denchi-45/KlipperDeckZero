@@ -48,7 +48,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 ```powershell
 cmake --preset win32-mingw64
 cmake --build build/mingw64 --config Debug
-./build/mingw64/Debug/klipper_deck_zero.exe
+./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
 MSVC の場合は `win32-msvc` プリセット(`build/msvc`)を使います。
@@ -67,10 +67,12 @@ REMOTE_USER=pi REMOTE_HOST=<ip> ./deploy.sh
 
 ```ini
 [moonraker]
-transport=websocket                 # unix | websocket(既定: 実機=unix, シミュレーター=websocket)
+# unix | websocket(既定: 実機=unix, シミュレーター=websocket)
+transport=websocket
 socket_path=~/printer_data/comms/moonraker.sock
 url=ws://127.0.0.1:7125/websocket
-#api_key=                           # trusted_clients に入っていない場合のみ
+# trusted_clients に入っていない場合のみ
+#api_key=
 ```
 
 ## プリンターなしで動かす(疑似 Moonraker)
@@ -79,7 +81,7 @@ url=ws://127.0.0.1:7125/websocket
 
 ```powershell
 ./build/mingw64/Debug/fake_moonraker.exe --speed 20   # ws://127.0.0.1:7125/websocket
-./build/mingw64/Debug/klipper_deck_zero.exe
+./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
 実機につなぐ場合は `url=ws://<プリンターIP>:7125/websocket` に変更します。
