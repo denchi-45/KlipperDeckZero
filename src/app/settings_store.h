@@ -26,14 +26,19 @@ public:
 
     void add_change_listener(ChangeListener listener);
 
-    // Saves the settings that differ from the current config, then notifies listeners. The new
-    // values take effect even when saving fails; error then says why they were not saved.
+    // True when an earlier apply() could not write its settings; the next apply() retries them.
+    bool has_unsaved() const;
+
+    // Saves the settings that differ from the current config (and any left unsaved earlier),
+    // then notifies listeners of the ones that changed. The new values take effect even when
+    // saving fails; error then says why they were not saved.
     bool apply(const ApplicationConfig& updated, std::string& error);
 
 private:
     ApplicationConfig config_;
     std::string user_config_path_;
     std::vector<ChangeListener> listeners_;
+    std::vector<Setting> unsaved_;
 };
 
 } // namespace app

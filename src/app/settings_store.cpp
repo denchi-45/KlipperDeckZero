@@ -6,6 +6,7 @@
 
 #include "settings_form.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace app {
@@ -25,17 +26,30 @@ void SettingsStore::add_change_listener(ChangeListener listener) {
     listeners_.push_back(std::move(listener));
 }
 
+bool SettingsStore::has_unsaved() const {
+    return !unsaved_.empty();
+}
+
 bool SettingsStore::apply(const ApplicationConfig& updated, std::string& error) {
     error.clear();
     const auto changed = changed_settings(config_, updated);
-    if (changed.empty()) {
+    auto to_save = changed;
+    for (const auto id : unsaved_) {
+        if (std::find(to_save.begin(), to_save.end(), id) == to_save.end()) {
+            to_save.push_back(id);
+        }
+    }
+    if (to_save.empty()) {
         return true;
     }
 
-    const bool saved = save_application_config(user_config_path_, updated, changed, error);
+    const bool saved = save_application_config(user_config_path_, updated, to_save, error);
+    unsaved_ = saved ? std::vector<Setting>{} : to_save;
     config_ = updated;
-    for (const auto& listener : listeners_) {
-        listener(config_, changed);
+    if (!changed.empty()) {
+        for (const auto& listener : listeners_) {
+            listener(config_, changed);
+        }
     }
     return saved;
 }

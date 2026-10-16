@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 namespace {
@@ -159,4 +160,42 @@ TEST_CASE("settings store: saves only changed settings and notifies") {
     CHECK(store.apply(updated, error));
     CHECK(notified.empty());
     std::remove(path.c_str());
+}
+
+TEST_CASE("settings store: a failed save is retried with the same values") {
+    // A regular file where the config's directory should be makes saving fail.
+    const auto blocker = std::filesystem::temp_directory_path() / "kdz_test_store_blocker";
+    std::filesystem::remove_all(blocker);
+    std::ofstream(blocker) << "not a directory";
+    const auto path = (blocker / "user.conf").string();
+
+    app::SettingsStore store(local_config(), path);
+    int notifications = 0;
+    store.add_change_listener(
+        [&notifications](const app::ApplicationConfig&, const std::vector<app::Setting>&) {
+            ++notifications;
+        });
+
+    auto updated = store.config();
+    updated.moonraker.socket_path = "/run/moonraker.sock";
+    std::string error;
+    CHECK(!store.apply(updated, error));
+    CHECK(!error.empty());
+    CHECK(store.has_unsaved());
+    CHECK_EQ(notifications, 1);
+
+    // Same values again: still retried, but nothing changed so listeners stay quiet.
+    CHECK(!store.apply(updated, error));
+    CHECK(store.has_unsaved());
+    CHECK_EQ(notifications, 1);
+
+    std::filesystem::remove(blocker);
+    CHECK(store.apply(updated, error));
+    CHECK(!store.has_unsaved());
+    CHECK_EQ(notifications, 1);
+
+    app::ApplicationConfig loaded;
+    CHECK(app::load_application_config(path, loaded, error));
+    CHECK_EQ(loaded.moonraker.socket_path, std::string("/run/moonraker.sock"));
+    std::filesystem::remove_all(blocker);
 }

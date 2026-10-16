@@ -191,7 +191,7 @@ bool SettingsScreen::handle_key(uint32_t key, bool long_pressed) {
 
 void SettingsScreen::submit() {
     const auto changed = app::changed_settings(store_.config(), form_.draft());
-    if (changed.empty()) {
+    if (changed.empty() && !store_.has_unsaved()) {
         set_message("No changes", false);
         return;
     }
