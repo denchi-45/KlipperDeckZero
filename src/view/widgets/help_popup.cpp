@@ -87,7 +87,7 @@ void HelpPopup::build() {
 
     panel_ = lv_obj_create(core_obj_);
     lv_obj_remove_style_all(panel_);
-    lv_obj_set_size(panel_, 292, 146);
+    lv_obj_set_size(panel_, 292, 158);
     lv_obj_center(panel_);
     lv_obj_set_style_radius(panel_, 6, 0);
     lv_obj_set_style_bg_opa(panel_, LV_OPA_COVER, 0);
@@ -114,7 +114,7 @@ void HelpPopup::build() {
 
     auto* rows = lv_obj_create(panel_);
     lv_obj_remove_style_all(rows);
-    lv_obj_set_size(rows, 268, 88);
+    lv_obj_set_size(rows, 268, 101);
     lv_obj_align(rows, LV_ALIGN_TOP_MID, 0, 35);
     lv_obj_set_flex_flow(rows, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(rows, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
