@@ -76,13 +76,20 @@ TEST_CASE("apply_status handles null values") {
     CHECK(!state.has_heater_bed);
 }
 
-TEST_CASE("apply_status treats an empty heater_bed as missing") {
+TEST_CASE("apply_status treats a heater_bed without values as missing") {
     // Klipper answers a subscription to an object it does not have with an empty object.
     model::PrinterState state;
     state.has_heater_bed = true;
     CHECK(moonraker::apply_status(state, json::parse(R"({
         "extruder": {"temperature": 25.0},
         "heater_bed": {}
+    })")));
+    CHECK(!state.has_heater_bed);
+
+    // Moonraker answers each requested field of a missing object with null.
+    state.has_heater_bed = true;
+    CHECK(moonraker::apply_status(state, json::parse(R"({
+        "heater_bed": {"temperature": null, "target": null, "power": null}
     })")));
     CHECK(!state.has_heater_bed);
 
