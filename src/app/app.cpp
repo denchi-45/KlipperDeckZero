@@ -428,7 +428,7 @@ int Application::run() {
     // Shared by the shortcuts and the page commands; created first so it outlives both.
     view::widgets::Toast toast(lv_layer_top(), view_model, assets);
     toast.build();
-    PrinterCommands commands(toast);
+    PrinterCommands commands(toast, view_model);
 
     ScreenManager screen_manager(view_model, assets, settings, commands);
     screen_manager.start();
