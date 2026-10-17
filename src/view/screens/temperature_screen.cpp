@@ -7,6 +7,8 @@
 #include "asset_manager.h"
 #include "bindings.h"
 #include "linux_input.h"
+#include "panel_keys.h"
+#include "panel_style.h"
 #include "printer_commands.h"
 #include "style_bindings.h"
 #include "theme.h"
@@ -24,41 +26,6 @@ constexpr int32_t kTargetX = 196;
 
 const lv_font_t* font_or(const lv_font_t* font, const lv_font_t* fallback) {
     return font ? font : fallback;
-}
-
-bool to_panel_input(uint32_t key, app::PanelInput& input) {
-    switch (key) {
-        case LV_KEY_UP:
-        case LV_KEY_PREV:
-            input = app::PanelInput::Up;
-            return true;
-        case LV_KEY_DOWN:
-        case LV_KEY_NEXT:
-            input = app::PanelInput::Down;
-            return true;
-        case LV_KEY_LEFT:
-            input = app::PanelInput::Left;
-            return true;
-        case LV_KEY_RIGHT:
-            input = app::PanelInput::Right;
-            return true;
-        case LV_KEY_ENTER:
-            input = app::PanelInput::Enter;
-            return true;
-        case LV_KEY_ESC:
-            input = app::PanelInput::Escape;
-            return true;
-        case LV_KEY_BACKSPACE:
-        case LV_KEY_DEL:
-            input = app::PanelInput::Backspace;
-            return true;
-        default:
-            if (key >= '0' && key <= '9') {
-                input = app::PanelInput::Digit;
-                return true;
-            }
-            return false;
-    }
 }
 
 int rounded_target(double celsius) {
@@ -136,10 +103,7 @@ void TemperatureScreen::build_content(lv_obj_t* content) {
 
     for (std::size_t i = 0; i < app::temperature_presets().size(); ++i) {
         auto* chip = lv_label_create(presets_row_);
-        lv_obj_set_style_text_font(chip, small_font_, 0);
-        lv_obj_set_style_radius(chip, 3, 0);
-        lv_obj_set_style_pad_hor(chip, 5, 0);
-        lv_obj_set_style_pad_ver(chip, 1, 0);
+        view::widgets::init_chip(chip, small_font_);
         preset_chips_.push_back(chip);
     }
 
@@ -254,7 +218,7 @@ void TemperatureScreen::refresh() {
     const auto update_heater = [&](HeaterWidgets& widgets, app::TemperatureRow row, double target) {
         const bool is_focused = focused == row;
         const bool is_editing = is_focused && editing;
-        style_row(widgets.row, is_focused, is_editing);
+        view::widgets::style_panel_row(widgets.row, colors, is_focused, is_editing);
         lv_obj_set_style_text_color(widgets.name, colors.text, 0);
 
         const auto text = is_editing ? panel_.draft_text() + "_" : target_text(printer, target);
@@ -273,20 +237,12 @@ void TemperatureScreen::refresh() {
     }
 
     const bool presets_focused = focused == app::TemperatureRow::Presets;
-    style_row(presets_row_, presets_focused, false);
+    view::widgets::style_panel_row(presets_row_, colors, presets_focused);
     lv_obj_set_style_text_color(presets_label_, colors.text, 0);
     const auto& presets = app::temperature_presets();
     for (std::size_t i = 0; i < preset_chips_.size(); ++i) {
-        auto* chip = preset_chips_[i];
-        const bool selected = i == panel_.preset();
-        lv_label_set_text(chip, preset_text(presets[i], has_bed).c_str());
-        lv_obj_set_style_bg_color(chip, colors.primary, 0);
-        lv_obj_set_style_bg_opa(chip, selected && presets_focused ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_color(chip, selected ? colors.primary : colors.border, 0);
-        lv_obj_set_style_border_width(chip, 1, 0);
-        lv_obj_set_style_text_color(chip,
-                                    selected && presets_focused ? colors.surface : colors.text,
-                                    0);
+        lv_label_set_text(preset_chips_[i], preset_text(presets[i], has_bed).c_str());
+        view::widgets::style_chip(preset_chips_[i], colors, i == panel_.preset(), presets_focused);
     }
 
     const char* hint = nullptr;
@@ -304,14 +260,6 @@ void TemperatureScreen::refresh() {
     }
     lv_label_set_text(hint_, hint);
     lv_obj_set_style_text_color(hint_, panel_.error().empty() ? colors.text_disabled : colors.error, 0);
-}
-
-void TemperatureScreen::style_row(lv_obj_t* row, bool focused, bool editing) {
-    const auto colors = view::palette(view_model().is_dark_mode());
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
-    lv_obj_set_style_bg_color(row, focused ? lv_color_mix(colors.primary, colors.button, LV_OPA_20) : colors.button, 0);
-    lv_obj_set_style_border_color(row, focused ? colors.primary : colors.border, 0);
-    lv_obj_set_style_border_width(row, editing ? 2 : 1, 0);
 }
 
 bool TemperatureScreen::key_handler(uint32_t key, bool long_pressed, void* user_data) {

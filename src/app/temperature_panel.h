@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "panel_input.h"
+
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -25,17 +27,6 @@ struct TemperaturePreset {
 
 // Presets offered on the temperature page, in display order.
 const std::vector<TemperaturePreset>& temperature_presets();
-
-enum class PanelInput {
-    Up,
-    Down,
-    Left,
-    Right,
-    Enter,
-    Escape,
-    Backspace,
-    Digit,
-};
 
 // Targets to send when the panel returns Apply. A heater without a value is left as it is.
 struct TemperatureRequest {

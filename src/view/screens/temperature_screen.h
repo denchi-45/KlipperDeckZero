@@ -40,7 +40,6 @@ private:
     bool handle_key(uint32_t key, bool long_pressed);
     app::HeaterTargets current_targets() const;
     void refresh();
-    void style_row(lv_obj_t* row, bool focused, bool editing);
 
     static bool key_handler(uint32_t key, bool long_pressed, void* user_data);
     static void refresh_observer_cb(lv_observer_t* observer, lv_subject_t* subject);

@@ -6,6 +6,7 @@
 
 #include "screen_manager.h"
 
+#include "extruder_screen.h"
 #include "placeholder_screen.h"
 #include "settings_screen.h"
 #include "status_screen.h"
@@ -64,6 +65,9 @@ void ScreenManager::show_screen(model::AppPage page) {
     }
     else if (page == model::AppPage::Temperature) {
         load_screen(std::make_unique<screen::TemperatureScreen>(view_model_, assets_, commands_));
+    }
+    else if (page == model::AppPage::Extruder) {
+        load_screen(std::make_unique<screen::ExtruderScreen>(view_model_, assets_, commands_));
     }
     else if (page == model::AppPage::Settings) {
         load_screen(std::make_unique<screen::SettingsScreen>(view_model_, assets_, settings_));

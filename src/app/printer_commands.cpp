@@ -4,6 +4,7 @@
 
 #include "printer_commands.h"
 
+#include "gcode.h"
 #include "logger.h"
 #include "moonraker_session.h"
 #include "toast.h"
@@ -37,6 +38,17 @@ void PrinterCommands::set_temperatures(const TemperatureRequest& request) {
         return;
     }
     run_script(script, "Target set: " + describe(request));
+}
+
+void PrinterCommands::move_extruder(const ExtruderRequest& request) {
+    if (!require_ready()) {
+        return;
+    }
+    if (const char* reason = extrude_block_reason(*printer())) {
+        toast_.show(reason, view::widgets::ToastTone::Warning);
+        return;
+    }
+    run_script(gcode::move_extruder(request.length_mm, request.speed_mm_s), describe(request));
 }
 
 bool PrinterCommands::require_ready() {

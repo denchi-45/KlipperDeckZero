@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "extruder_panel.h"
 #include "printer_state.h"
 #include "temperature_panel.h"
 
@@ -33,6 +34,8 @@ public:
     const model::PrinterState* printer() const;
 
     void set_temperatures(const TemperatureRequest& request);
+    // Refused while printing or while the nozzle is too cold.
+    void move_extruder(const ExtruderRequest& request);
 
 private:
     // Shows a warning and returns false unless commands can be sent now.
