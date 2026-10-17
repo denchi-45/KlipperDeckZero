@@ -57,6 +57,9 @@ const std::vector<FakeFile> kFiles = {
     {"calibration_cube_20mm.gcode", 456'123, 1260, 1520.2, 20.0},
     {"phone_stand_PETG.gcode", 2'345'678, 7320, 9120.8, 85.0},
     {"spool_holder/arm_v2.gcode", 1'234'567, 3600, 3010.0, 30.0},
+    // Slicer-style names that only differ at the end, longer than a list row.
+    {"3DBenchy_0.2mm_PLA_Generic Klipper Printer_1h26m.gcode", 2'411'000, 5160, 4710.0, 48.0},
+    {"3DBenchy_0.2mm_PLA_Generic Klipper Printer_29m15s.gcode", 1'038'000, 1755, 4650.0, 48.0},
 };
 
 class Printer {
