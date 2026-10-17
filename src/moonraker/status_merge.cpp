@@ -4,6 +4,7 @@
 
 #include "status_merge.h"
 
+#include <algorithm>
 #include <string>
 
 namespace moonraker {
@@ -163,8 +164,11 @@ bool apply_status(model::PrinterState& state, const Json& status) {
     }
 
     if (const auto it = status.find("heater_bed"); it != status.end()) {
-        // Moonraker returns null for objects the printer does not have.
-        const bool present = it->is_object();
+        // For an object the printer does not have, the subscription answers null, an empty object,
+        // or every requested field as null. Later diffs only name the bed when a field changed.
+        const bool present =
+            it->is_object() &&
+            std::any_of(it->begin(), it->end(), [](const Json& field) { return !field.is_null(); });
         if (state.has_heater_bed != present) {
             state.has_heater_bed = present;
             changed = true;
