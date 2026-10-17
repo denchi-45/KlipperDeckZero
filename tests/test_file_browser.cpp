@@ -173,6 +173,29 @@ TEST_CASE("files: the thumbnail belongs to the shown file and is dropped with it
     CHECK(browser.thumbnail().empty());
 }
 
+TEST_CASE("files: metadata arriving after the details were closed is not used") {
+    FileBrowser browser;
+    browser.set_files(numbered_files(2));
+
+    // Open file0 twice; the first response arrives during the second opening.
+    browser.handle(PanelInput::Enter);
+    browser.handle(PanelInput::Escape);
+    browser.handle(PanelInput::Enter);
+    app::GcodeMetadata metadata;
+    metadata.thumbnails = {{300, 300, ".thumbs/file0.png"}};
+    CHECK(browser.set_metadata("file0.gcode", &metadata));
+
+    // The second response arrives while file1 is selected in the list.
+    browser.handle(PanelInput::Escape);
+    browser.handle(PanelInput::Down);
+    CHECK(!browser.set_metadata("file0.gcode", &metadata));
+    CHECK(!browser.set_metadata("file1.gcode", &metadata));
+
+    browser.handle(PanelInput::Enter);
+    CHECK(browser.details_state() == FileBrowser::DetailsState::Loading);
+    CHECK(browser.metadata().thumbnails.empty());
+}
+
 TEST_CASE("files: a file without metadata can still be printed") {
     FileBrowser browser;
     browser.set_files(numbered_files(1));

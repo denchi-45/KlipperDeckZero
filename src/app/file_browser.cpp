@@ -33,10 +33,10 @@ void FileBrowser::set_failed(std::string error) {
     error_ = std::move(error);
 }
 
-void FileBrowser::set_metadata(const std::string& path, const GcodeMetadata* metadata) {
+bool FileBrowser::set_metadata(const std::string& path, const GcodeMetadata* metadata) {
     const auto* file = selected_file();
     if (mode_ != Mode::Details || !file || file->path != path) {
-        return;
+        return false;
     }
     if (metadata) {
         metadata_ = *metadata;
@@ -45,6 +45,7 @@ void FileBrowser::set_metadata(const std::string& path, const GcodeMetadata* met
     else {
         details_state_ = DetailsState::Unavailable;
     }
+    return true;
 }
 
 void FileBrowser::set_thumbnail(const std::string& path, std::string png) {

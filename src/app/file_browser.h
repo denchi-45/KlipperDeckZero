@@ -45,8 +45,9 @@ public:
     // Keeps the selected file selected when it is still in the list.
     void set_files(std::vector<GcodeFile> files);
     void set_failed(std::string error);
-    // Ignored unless path is the file whose details are shown.
-    void set_metadata(const std::string& path, const GcodeMetadata* metadata);
+    // Ignored unless path is the file whose details are shown. Returns whether it was used, so
+    // a late response for a closed details page starts nothing else (e.g. a thumbnail fetch).
+    bool set_metadata(const std::string& path, const GcodeMetadata* metadata);
     // The PNG thumbnail of the file at path (empty when it could not be read). Ignored unless
     // path is the file whose details are shown.
     void set_thumbnail(const std::string& path, std::string png);

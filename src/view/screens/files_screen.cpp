@@ -251,15 +251,19 @@ void FilesScreen::load_metadata() {
         if (alive.expired()) {
             return;
         }
-        browser_.set_metadata(path, metadata);
-        load_thumbnail();
+        // A late response, e.g. after going back to the list, must not fetch a thumbnail: the
+        // browser still holds the old metadata, and another file may be selected by now.
+        if (browser_.set_metadata(path, metadata)) {
+            load_thumbnail();
+        }
         refresh();
     });
 }
 
 void FilesScreen::load_thumbnail() {
     const auto* file = browser_.selected_file();
-    if (!file || browser_.details_state() != app::FileBrowser::DetailsState::Loaded) {
+    if (!file || browser_.mode() != app::FileBrowser::Mode::Details ||
+        browser_.details_state() != app::FileBrowser::DetailsState::Loaded) {
         return;
     }
     const auto* thumbnail = app::pick_thumbnail(browser_.metadata().thumbnails, kThumbnailSize);
