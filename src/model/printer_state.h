@@ -6,6 +6,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 namespace model {
 
@@ -40,6 +41,14 @@ struct ExtruderState : HeaterState {
     bool can_extrude{false};
 };
 
+// A temperature sensor other than the nozzle and bed, e.g. `temperature_sensor mcu`.
+struct SensorState {
+    std::string object; // Klipper object name, e.g. "temperature_sensor Micro4"
+    std::string name;   // shown name, e.g. "Micro4"
+    double temperature{0.0};
+    bool known{false};  // false until the first reading
+};
+
 // Snapshot of the subscribed Klipper printer objects.
 // Updated by merging Moonraker `notify_status_update` diffs.
 struct PrinterState {
@@ -68,6 +77,9 @@ struct PrinterState {
     ExtruderState extruder;
     bool has_heater_bed{false};
     HeaterState heater_bed;
+
+    // Other temperature sensors from heaters.available_sensors, in Klipper's order.
+    std::vector<SensorState> sensors;
 
     // toolhead
     std::array<double, 4> position{};

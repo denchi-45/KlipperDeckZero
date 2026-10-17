@@ -21,6 +21,10 @@
 #define APP_NETWORK_CLASS_ROOT "/sys/class/net"
 #endif
 
+#ifndef APP_THERMAL_CLASS_ROOT
+#define APP_THERMAL_CLASS_ROOT "/sys/class/thermal"
+#endif
+
 #ifndef APP_WIRELESS_STATUS_PATH
 #define APP_WIRELESS_STATUS_PATH "/proc/net/wireless"
 #endif
@@ -129,7 +133,34 @@ void read_network(DeviceStatus& status) {
     }
 }
 
+#if !USE_DESKTOP
+// The "cpu-thermal" zone; other zones (e.g. the battery gauge) report unrelated temperatures.
+std::filesystem::path find_cpu_thermal_zone() {
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(APP_THERMAL_CLASS_ROOT, ec)) {
+        std::string type;
+        if (read_text_file(entry.path() / "type", type) && type.find("cpu") != std::string::npos) {
+            return entry.path();
+        }
+    }
+    return {};
+}
+#endif
+
 } // namespace
+
+double read_cpu_temperature() {
+#if USE_DESKTOP
+    return -1.0;
+#else
+    static const auto zone = find_cpu_thermal_zone();
+    if (zone.empty()) {
+        return -1.0;
+    }
+    const auto millidegrees = read_int_file(zone / "temp", -1);
+    return millidegrees < 0 ? -1.0 : millidegrees / 1000.0;
+#endif
+}
 
 DeviceStatus read_device_status() {
 #if USE_DESKTOP

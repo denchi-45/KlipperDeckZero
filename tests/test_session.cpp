@@ -54,9 +54,14 @@ struct Fixture {
         CHECK_EQ(last_method(), std::string("server.info"));
     }
 
-    void reach_ready() {
+    // available_sensors is the printer's heaters.available_sensors list.
+    void reach_ready(const json& available_sensors = json::array({"extruder"})) {
         connect_and_identify();
         reply(shared, last_sent(), json{{"klippy_state", "ready"}});
+        poll();
+        CHECK_EQ(last_method(), std::string("printer.objects.query"));
+        CHECK(last_sent()["params"]["objects"].contains("heaters"));
+        reply(shared, last_sent(), json{{"status", {{"heaters", {{"available_sensors", available_sensors}}}}}});
         poll();
         CHECK_EQ(last_method(), std::string("printer.objects.subscribe"));
         reply(shared, last_sent(), json{{"eventtime", 1.0},
@@ -94,6 +99,39 @@ TEST_CASE("session: ready flow subscribes and merges snapshot") {
     CHECK(f.session.printer().klippy_state == model::KlippyState::Ready);
     CHECK_NEAR(f.session.printer().extruder.temperature, 25.0, 1e-9);
     CHECK(f.session.printer().print_state == model::PrintState::Standby);
+}
+
+TEST_CASE("session: extra temperature sensors are subscribed and merged") {
+    Fixture f;
+    f.reach_ready(json::array({"temperature_sensor Micro4", "extruder", "heater_bed", "temperature_fan chamber"}));
+    const auto& objects = f.shared.sent.back()["params"]["objects"];
+    CHECK(objects.contains("temperature_sensor Micro4"));
+    CHECK(objects.contains("temperature_fan chamber"));
+
+    const auto& sensors = f.session.printer().sensors;
+    CHECK_EQ(sensors.size(), std::size_t{2});
+    CHECK_EQ(sensors[0].name, std::string("Micro4"));
+    CHECK_EQ(sensors[1].name, std::string("chamber"));
+    CHECK(!sensors[0].known);
+
+    notify(f.shared, "notify_status_update",
+           json::array({{{"temperature_sensor Micro4", {{"temperature", 52.2}}}}, 2.0}));
+    f.poll();
+    CHECK(f.session.printer().sensors[0].known);
+    CHECK_NEAR(f.session.printer().sensors[0].temperature, 52.2, 1e-9);
+    CHECK(!f.session.printer().sensors[1].known);
+}
+
+TEST_CASE("session: a failed sensor query still subscribes") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    CHECK_EQ(f.last_method(), std::string("printer.objects.query"));
+    reply_error(f.shared, f.last_sent(), 400, "Invalid object");
+    f.poll();
+    CHECK_EQ(f.last_method(), std::string("printer.objects.subscribe"));
+    CHECK(f.session.printer().sensors.empty());
 }
 
 TEST_CASE("session: status updates bump revision and notify listener") {

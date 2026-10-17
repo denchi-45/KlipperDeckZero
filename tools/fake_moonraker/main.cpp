@@ -286,6 +286,10 @@ private:
             {"gcode_move", {{"speed_factor", 1.0}, {"extrude_factor", 1.0}, {"gcode_position", {0.0, 0.0, 0.0, 0.0}}}},
             {"fan", {{"speed", 0.0}}},
             {"idle_timeout", {{"state", "Idle"}}},
+            {"heaters",
+             {{"available_heaters", {"extruder", "heater_bed"}},
+              {"available_sensors", {"extruder", "heater_bed", "temperature_sensor mcu"}}}},
+            {"temperature_sensor mcu", {{"temperature", 41.8}}},
         };
         current_file_ = nullptr;
     }

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "panel_input.h"
+#include "printer_state.h"
 
 #include <cstddef>
 #include <optional>
@@ -38,6 +39,11 @@ struct TemperatureRequest {
 std::string temperature_script(const TemperatureRequest& request);
 // "Nozzle 215", "Bed off", "Nozzle 200, Bed 60": confirmation text for the request.
 std::string describe(const TemperatureRequest& request);
+
+// Bottom line of the temperature page: the printer's other sensors, then this device's CPU,
+// in whole degrees, e.g. "Micro4 52   CardputerZero 60". Unknown values show "--"; the device
+// is left out when its temperature is unknown (device_celsius < 0).
+std::string sensor_line(const std::vector<model::SensorState>& sensors, double device_celsius);
 
 // The printer's current targets, used as the starting value of an edit.
 struct HeaterTargets {

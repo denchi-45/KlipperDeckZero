@@ -23,4 +23,8 @@ struct DeviceStatus {
 
 DeviceStatus read_device_status();
 
+// This device's CPU temperature in degrees Celsius, or a negative value when unknown
+// (e.g. the desktop simulator).
+double read_cpu_temperature();
+
 } // namespace platform

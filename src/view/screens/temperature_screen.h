@@ -43,6 +43,7 @@ private:
 
     static bool key_handler(uint32_t key, bool long_pressed, void* user_data);
     static void refresh_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
+    static void sensor_timer_cb(lv_timer_t* timer);
 
     app::PrinterCommands& commands_;
     app::TemperaturePanel panel_;
@@ -55,7 +56,9 @@ private:
     lv_obj_t* presets_row_{nullptr};
     lv_obj_t* presets_label_{nullptr};
     std::vector<lv_obj_t*> preset_chips_;
+    // Edit errors and key hints, otherwise the other temperature sensors.
     lv_obj_t* hint_{nullptr};
+    lv_timer_t* sensor_timer_{nullptr};
 };
 
 } // namespace screen
