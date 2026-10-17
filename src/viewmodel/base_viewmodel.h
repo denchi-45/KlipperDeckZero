@@ -54,6 +54,7 @@ public:
     lv_subject_t* nozzle_temperature_subject();
     lv_subject_t* nozzle_target_subject();
     lv_subject_t* nozzle_power_subject();        // percent 0..100
+    lv_subject_t* nozzle_can_extrude_subject();
     lv_subject_t* bed_available_subject();
     lv_subject_t* bed_temperature_subject();
     lv_subject_t* bed_target_subject();
@@ -86,6 +87,7 @@ private:
     reactive::StringSubject<12> nozzle_temperature_;
     reactive::StringSubject<12> nozzle_target_;
     reactive::IntSubject nozzle_power_;
+    reactive::BoolSubject nozzle_can_extrude_;
     reactive::BoolSubject bed_available_;
     reactive::StringSubject<12> bed_temperature_;
     reactive::StringSubject<12> bed_target_;

@@ -107,8 +107,10 @@ void ExtruderScreen::build_content(lv_obj_t* content) {
     lv_obj_set_width(hint_, LV_PCT(100));
     lv_obj_set_style_text_font(hint_, small_font_, 0);
 
-    // Redraw when the temperature, the print state, or the theme change.
+    // Redraw when the temperature, whether the nozzle can extrude, the print state, or the theme
+    // change.
     reactive::observe_obj(column, vm.nozzle_temperature_subject(), refresh_observer_cb, this);
+    reactive::observe_obj(column, vm.nozzle_can_extrude_subject(), refresh_observer_cb, this);
     reactive::observe_obj(column, vm.printer_badge_text_subject(), refresh_observer_cb, this);
     reactive::observe_obj(column, dark, refresh_observer_cb, this);
     refresh();
