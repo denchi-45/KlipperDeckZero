@@ -31,6 +31,8 @@
 #endif
 
 #if !USE_DESKTOP
+#include <unistd.h>
+
 #if APP_USE_DRM
 #include "src/drivers/display/drm/lv_linux_drm.h"
 #else
@@ -244,7 +246,15 @@ private:
 };
 
 #if !USE_DESKTOP
+void sleep_ms(uint32_t ms) {
+    usleep(ms * 1000U);
+}
+
 lv_display_t* init_device_display() {
+    // The fbdev/DRM drivers only install a tick callback; without a delay callback
+    // lv_delay_ms() busy-waits and the main loop keeps a CPU core at 100%.
+    lv_delay_set_cb(sleep_ms);
+
 #if APP_USE_DRM
     auto* display = lv_linux_drm_create();
     if (!display) {
