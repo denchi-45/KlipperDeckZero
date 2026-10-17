@@ -207,6 +207,10 @@ TEST_CASE("session: gcode responses and operations") {
     CHECK_EQ(f.last_method(), std::string("printer.print.start"));
     f.session.emergency_stop();
     CHECK_EQ(f.last_method(), std::string("printer.emergency_stop"));
+    f.session.restart();
+    CHECK_EQ(f.last_method(), std::string("printer.restart"));
+    f.session.firmware_restart();
+    CHECK_EQ(f.last_method(), std::string("printer.firmware_restart"));
 
     notify(f.shared, "notify_filelist_changed", json::array({{{"action", "create_file"}}}));
     f.poll();

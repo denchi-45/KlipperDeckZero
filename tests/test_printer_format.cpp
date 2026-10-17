@@ -66,6 +66,8 @@ TEST_CASE("format: connection overlay") {
     CHECK(connecting.visible);
     CHECK_EQ(connecting.detail, std::string("ws://x\nrefused"));
     CHECK(connecting.tone == format::Tone::Warning);
+    // Restarting Klipper needs Moonraker, so only settings are offered here.
+    CHECK_EQ(connecting.hint, std::string("S: connection settings"));
 
     printer.klippy_state = model::KlippyState::Error;
     printer.state_message = "MCU 'mcu' shutdown: Timer too close";
@@ -73,4 +75,9 @@ TEST_CASE("format: connection overlay") {
     CHECK_EQ(error.title, std::string("Klipper error"));
     CHECK_EQ(error.detail, printer.state_message);
     CHECK(error.tone == format::Tone::Error);
+    CHECK_EQ(error.hint, std::string("R: restart  F: firmware restart  S: settings"));
+
+    printer.klippy_state = model::KlippyState::Startup;
+    const auto waiting = format::connection_overlay(SessionState::WaitingKlippy, printer, "ws://x", "");
+    CHECK_EQ(waiting.hint, error.hint);
 }

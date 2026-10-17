@@ -12,6 +12,7 @@
 #include "logger.h"
 #include "linux_input.h"
 #include "printer_service.h"
+#include "restart_confirm.h"
 #include "screenshot_service.h"
 #include "screen_manager.h"
 #include "settings_store.h"
@@ -122,8 +123,76 @@ public:
         platform::clear_global_key_listener(global_key_listener, this);
     }
 
+    // The session the restart shortcuts act on; nullptr while it is being replaced.
+    void set_session(moonraker::MoonrakerSession* session) {
+        session_ = session;
+        restart_confirm_.cancel();
+    }
+
 private:
+    static bool restart_kind_for(uint32_t key, RestartKind& kind) {
+        if (key == 'r' || key == 'R') {
+            kind = RestartKind::Klipper;
+            return true;
+        }
+        if (key == 'f' || key == 'F') {
+            kind = RestartKind::Firmware;
+            return true;
+        }
+        return false;
+    }
+
+    void request_restart(RestartKind kind) {
+        if (!session_) {
+            return;
+        }
+
+        const bool klipper = kind == RestartKind::Klipper;
+        const bool printing =
+            restart_would_abort_print(session_->session_state(), session_->printer().print_state);
+        switch (restart_confirm_.press(kind, printing, lv_tick_get())) {
+            case RestartConfirm::Result::Blocked:
+                toast_->show("Can't restart while printing", view::widgets::ToastTone::Warning);
+                return;
+            case RestartConfirm::Result::Armed:
+                toast_->show_highlighted("Press ",
+                                         klipper ? "R" : "F",
+                                         klipper ? " again to restart Klipper"
+                                                 : " again to restart the MCU",
+                                         view::widgets::ToastTone::Warning,
+                                         RestartConfirm::kWindowMs);
+                return;
+            case RestartConfirm::Result::Confirmed:
+                break;
+        }
+
+        LOG_INFO("{} requested", klipper ? "RESTART" : "FIRMWARE_RESTART");
+        toast_->show(klipper ? "Restarting Klipper..." : "Restarting MCU firmware...",
+                     view::widgets::ToastTone::Success);
+        auto on_result = [this](const moonraker::RpcResponse& response) {
+            if (!response.ok) {
+                LOG_WARN("restart failed: {}", response.error.message);
+                toast_->show("Restart failed: " + response.error.message,
+                             view::widgets::ToastTone::Error,
+                             4000);
+            }
+        };
+        if (klipper) {
+            session_->restart(std::move(on_result));
+        }
+        else {
+            session_->firmware_restart(std::move(on_result));
+        }
+    }
+
     bool handle_key(uint32_t key, bool long_pressed) {
+        RestartKind restart_kind{};
+        const bool is_restart_key = restart_kind_for(key, restart_kind);
+        if (!is_restart_key) {
+            // Any other key abandons a pending confirmation.
+            restart_confirm_.cancel();
+        }
+
         if (key == platform::kKeyPrintScreen) {
             if (!long_pressed) {
                 const auto result = platform::screenshot::capture_active_screen();
@@ -177,6 +246,13 @@ private:
 
         if ((key == 's' || key == 'S') && !long_pressed) {
             view_model_.show_page(model::AppPage::Settings);
+            return true;
+        }
+
+        if (is_restart_key && view_model_.current_page() == model::AppPage::Status) {
+            if (!long_pressed) {
+                request_restart(restart_kind);
+            }
             return true;
         }
 
@@ -241,6 +317,8 @@ private:
     viewmodel::BaseViewModel& view_model_;
     std::unique_ptr<view::widgets::Toast> toast_;
     std::unique_ptr<view::widgets::HelpPopup> help_popup_;
+    moonraker::MoonrakerSession* session_{nullptr};
+    RestartConfirm restart_confirm_;
     uint32_t exit_key_pressed_{0};
     bool exit_armed_{false};
 };
@@ -350,10 +428,13 @@ int Application::run() {
     ShortcutController shortcuts(view_model, assets);
 
     // Recreated whenever the connection settings change, so new settings apply without a restart.
+    // Declared after the shortcuts so it is destroyed first: pending RPC handlers point at them.
     std::unique_ptr<PrinterService> printer_service;
-    const auto connect = [&view_model, &printer_service](const MoonrakerConfig& moonraker) {
+    const auto connect = [&view_model, &printer_service, &shortcuts](const MoonrakerConfig& moonraker) {
+        shortcuts.set_session(nullptr);
         printer_service.reset();
         printer_service = std::make_unique<PrinterService>(moonraker);
+        shortcuts.set_session(&printer_service->session());
         printer_service->set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
             view_model.update_printer(session);
         });

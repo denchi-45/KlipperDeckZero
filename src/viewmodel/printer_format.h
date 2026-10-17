@@ -30,6 +30,8 @@ struct ConnectionOverlay {
     std::string title;
     std::string detail;
     Tone tone{Tone::Neutral};
+    // Keys that help in this state.
+    std::string hint{"S: connection settings"};
 };
 
 // "1:02:03" for >= 1 hour, "02:03" otherwise, "--:--" when negative (unknown).

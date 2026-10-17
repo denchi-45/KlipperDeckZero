@@ -77,7 +77,8 @@ BaseViewModel::BaseViewModel()
       overlay_visible_(true),
       overlay_title_("Connecting to Moonraker..."),
       overlay_detail_(""),
-      overlay_tone_(tone_to_int(format::Tone::Neutral)) {}
+      overlay_tone_(tone_to_int(format::Tone::Neutral)),
+      overlay_hint_(format::ConnectionOverlay{}.hint.c_str()) {}
 
 BaseViewModel::~BaseViewModel() = default;
 
@@ -167,6 +168,7 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
     set_if_changed(overlay_title_, overlay.title);
     set_if_changed(overlay_detail_, overlay.detail);
     set_if_changed(overlay_tone_, tone_to_int(overlay.tone));
+    set_if_changed(overlay_hint_, overlay.hint);
     set_if_changed(overlay_visible_, overlay.visible);
 }
 
@@ -252,6 +254,10 @@ lv_subject_t* BaseViewModel::overlay_detail_subject() {
 
 lv_subject_t* BaseViewModel::overlay_tone_subject() {
     return overlay_tone_.native();
+}
+
+lv_subject_t* BaseViewModel::overlay_hint_subject() {
+    return overlay_hint_.native();
 }
 
 void BaseViewModel::publish_all() {

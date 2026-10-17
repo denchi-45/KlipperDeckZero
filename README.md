@@ -35,6 +35,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 | `ESC` | ホームへ戻る |
 | `S` | 接続設定(この端末の Klipper / ネットワーク上のプリンター) |
 | `D` | ライト / ダーク切替 |
+| `R` / `F` | Klipper 再起動(`RESTART`) / MCU 再起動(`FIRMWARE_RESTART`)。状態表示で 3 秒以内に 2 回押すと実行。印刷中・一時停止中は実行しない |
 | `Fn`+`H` / `Fn`+`J` | ヘルプ / スクリーンショット(`~/Pictures/Screenshots` に PNG 保存。シミュレーターは `PrintScreen` キー) |
 
 接続設定画面では `↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket)」から選べ、「Save & connect」で保存して接続し直します。
