@@ -15,6 +15,7 @@
 
 namespace moonraker {
 class MoonrakerSession;
+struct RpcResponse;
 }
 
 namespace view::widgets {
@@ -55,10 +56,18 @@ public:
     // Refused while a print is running or paused. Shows the status page once it started.
     void start_print(const std::string& path);
 
+    void pause_print();
+    void resume_print();
+    void cancel_print();
+    // printer.emergency_stop: Klipper shuts down at once; FIRMWARE_RESTART recovers it.
+    void emergency_stop();
+
 private:
     // Shows a warning and returns false unless commands can be sent now.
     bool require_ready();
     void run_script(const std::string& script, const std::string& done_message);
+    // Reports the result of a print.* call with a toast.
+    std::function<void(const moonraker::RpcResponse&)> report(std::string done_message);
 
     view::widgets::Toast& toast_;
     viewmodel::BaseViewModel& view_model_;

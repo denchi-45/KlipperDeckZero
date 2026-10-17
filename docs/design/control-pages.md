@@ -54,6 +54,19 @@
 - 応答が画面を閉じた後に届いても触らないよう、画面が `shared_ptr` の生存フラグを持ち、コールバックは `weak_ptr` で確かめる。
 - JSON の解析(`src/app/file_list_parser.*`)は moonraker のヘッダーを使うので、画面からは見えない別ファイルに分けた。
 
+### 印刷制御(`8`)
+
+- `app::ControlPanel`(`src/app/control_panel.*`)と `screen::ControlScreen`。
+- 上部に状態バッジ・ファイル名・進捗・経過 / 残り時間・レイヤーを出す(状態表示と同じ subject を使う)。
+- ボタン: Pause / Resume、Cancel、E-Stop。`←`/`→` で選ぶ。
+  - Pause / Resume: `Enter` で `printer.print.pause` / `resume`。一時停止中はラベルが Resume になる。
+  - Cancel: 3 秒以内に `Enter` 2 回で `printer.print.cancel`。1 回目でボタンが赤くなり、3 秒たつと戻る。
+    ほかのキーを押すと取り消す。
+  - E-Stop: `Enter` の長押し(700ms)で `printer.emergency_stop`。短く押すと「押し続けて」と出す。
+    非常停止は Klipper が ready でなくても、Moonraker につながっていれば送る。
+- 印刷していないときは Pause と Cancel を灰色にし、押すと「No print is running」と出す。
+- 長押しは、短押しのイベントの後に届く。Pause / Cancel では長押しで操作を繰り返さない。
+
 ### 共通部品
 
 - キーの対応(`screen::to_panel_input`、`src/view/screens/panel_keys.*`)と、
@@ -79,6 +92,5 @@
 ## 未決事項 / TODO
 
 - プリセットを設定ファイルで変えられるようにするか。
-- 印刷制御の画面。
 - ファイル一覧を `notify_filelist_changed` で自動更新するか(今は画面を開くたびに取り直す)。
 - サムネイル表示。

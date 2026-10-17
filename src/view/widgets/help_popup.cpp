@@ -60,6 +60,15 @@ constexpr HelpRow kFilesRows[] = {
     {"4 - 8", "Switch page"},
 };
 
+constexpr HelpRow kControlRows[] = {
+    {"LEFT / RIGHT", "Pause / Cancel / E-Stop"},
+    {"ENTER", "Pause or resume"},
+    {"ENTER x2", "Cancel the print"},
+    {"HOLD ENTER", "Emergency stop"},
+    {"ESC", "Back to status"},
+    {"4 - 8", "Switch page"},
+};
+
 constexpr HelpRow kSettingsRows[] = {
     {"UP / DOWN", "Select a row"},
     {"ENTER", "Edit / change / save"},
@@ -87,6 +96,8 @@ HelpRows rows_for(model::AppPage page) {
             return rows_of(kExtruderRows);
         case model::AppPage::Files:
             return rows_of(kFilesRows);
+        case model::AppPage::Control:
+            return rows_of(kControlRows);
         case model::AppPage::Settings:
             return rows_of(kSettingsRows);
         default:
