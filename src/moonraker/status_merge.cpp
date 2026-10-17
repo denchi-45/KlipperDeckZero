@@ -94,8 +94,8 @@ void merge_heater(Merger& merger, model::HeaterState& heater) {
 
 } // namespace
 
-Json subscription_objects() {
-    return {
+Json subscription_objects(const std::vector<std::string>& sensor_objects) {
+    Json objects = {
         {"webhooks", {"state", "state_message"}},
         {"print_stats",
          {"state", "filename", "print_duration", "total_duration", "filament_used", "message", "info"}},
@@ -108,6 +108,40 @@ Json subscription_objects() {
         {"fan", {"speed"}},
         {"idle_timeout", {"state"}},
     };
+    for (const auto& object : sensor_objects) {
+        objects[object] = {"temperature"};
+    }
+    return objects;
+}
+
+std::vector<std::string> extra_sensor_objects(const Json& heaters) {
+    std::vector<std::string> objects;
+    const auto it = heaters.is_object() ? heaters.find("available_sensors") : heaters.end();
+    if (it == heaters.end() || !it->is_array()) {
+        return objects;
+    }
+    for (const auto& entry : *it) {
+        if (!entry.is_string()) {
+            continue;
+        }
+        auto object = entry.get<std::string>();
+        // The nozzle and bed have their own rows.
+        if (object != "extruder" && object != "heater_bed") {
+            objects.push_back(std::move(object));
+        }
+    }
+    return objects;
+}
+
+void init_sensors(model::PrinterState& state, const std::vector<std::string>& sensor_objects) {
+    state.sensors.clear();
+    for (const auto& object : sensor_objects) {
+        model::SensorState sensor;
+        sensor.object = object;
+        const auto space = object.find(' ');
+        sensor.name = space == std::string::npos ? object : object.substr(space + 1);
+        state.sensors.push_back(std::move(sensor));
+    }
 }
 
 bool apply_status(model::PrinterState& state, const Json& status) {
@@ -214,6 +248,23 @@ bool apply_status(model::PrinterState& state, const Json& status) {
         Merger merger(*object);
         merger.string("state", state.idle_state);
         changed |= merger.changed();
+    }
+
+    for (auto& sensor : state.sensors) {
+        const auto* object = find_object(status, sensor.object.c_str());
+        if (!object) {
+            continue;
+        }
+        const auto it = object->find("temperature");
+        if (it == object->end() || !it->is_number()) {
+            continue;
+        }
+        const double temperature = it->get<double>();
+        if (!sensor.known || sensor.temperature != temperature) {
+            sensor.temperature = temperature;
+            sensor.known = true;
+            changed = true;
+        }
     }
 
     return changed;

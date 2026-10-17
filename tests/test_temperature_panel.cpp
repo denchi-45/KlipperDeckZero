@@ -181,3 +181,18 @@ TEST_CASE("temperature: losing the bed while editing it ends the edit") {
     CHECK(panel.focused() == TemperatureRow::Nozzle);
     CHECK(panel.rows().size() == 2);
 }
+
+TEST_CASE("temperature: the sensor line lists other sensors, then this device") {
+    model::SensorState mcu;
+    mcu.name = "Micro4";
+    mcu.temperature = 52.4;
+    mcu.known = true;
+    model::SensorState chamber;
+    chamber.name = "chamber";
+
+    CHECK(app::sensor_line({mcu, chamber}, 59.6) == "Micro4 52   chamber --   CardputerZero 60");
+    // Without a device reading (e.g. the simulator) only the printer's sensors are shown.
+    CHECK(app::sensor_line({mcu}, -1.0) == "Micro4 52");
+    CHECK(app::sensor_line({}, 41.0) == "CardputerZero 41");
+    CHECK(app::sensor_line({}, -1.0).empty());
+}

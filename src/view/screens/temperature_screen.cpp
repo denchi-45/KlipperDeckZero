@@ -6,6 +6,7 @@
 
 #include "asset_manager.h"
 #include "bindings.h"
+#include "device_status.h"
 #include "linux_input.h"
 #include "panel_keys.h"
 #include "panel_style.h"
@@ -23,6 +24,7 @@ namespace {
 constexpr int32_t kHeaterRowHeight = 30;
 constexpr int32_t kPresetRowHeight = 22;
 constexpr int32_t kTargetX = 196;
+constexpr uint32_t kSensorRefreshMs = 2000;
 
 const lv_font_t* font_or(const lv_font_t* font, const lv_font_t* fallback) {
     return font ? font : fallback;
@@ -63,6 +65,9 @@ TemperatureScreen::TemperatureScreen(viewmodel::BaseViewModel& view_model,
 
 TemperatureScreen::~TemperatureScreen() {
     platform::clear_screen_key_handler(key_handler, this);
+    if (sensor_timer_) {
+        lv_timer_delete(sensor_timer_);
+    }
 }
 
 void TemperatureScreen::build_content(lv_obj_t* content) {
@@ -108,9 +113,12 @@ void TemperatureScreen::build_content(lv_obj_t* content) {
     }
 
     hint_ = lv_label_create(column);
-    lv_label_set_long_mode(hint_, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(hint_, LV_PCT(100));
+    // Many sensors may not fit on one line; scroll through them.
+    lv_label_set_long_mode(hint_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_size(hint_, LV_PCT(100), lv_font_get_line_height(small_font_));
     lv_obj_set_style_text_font(hint_, small_font_, 0);
+    // Sensor temperatures and this device's CPU change without a key press.
+    sensor_timer_ = lv_timer_create(sensor_timer_cb, kSensorRefreshMs, this);
 
     // Redraw when the printer's targets, the bed, or the theme change.
     reactive::observe_obj(column, vm.nozzle_target_subject(), refresh_observer_cb, this);
@@ -245,21 +253,41 @@ void TemperatureScreen::refresh() {
         view::widgets::style_chip(preset_chips_[i], colors, i == panel_.preset(), presets_focused);
     }
 
-    const char* hint = nullptr;
+    // Bottom line: an edit error, the keys while typing, otherwise the other temperature sensors
+    // and this device's CPU. The keys are also in the help popup.
+    const auto sensors = app::sensor_line(printer ? printer->sensors : std::vector<model::SensorState>{},
+                                          platform::read_cpu_temperature());
+    std::string bottom;
+    lv_color_t bottom_color = colors.text_disabled;
     if (!panel_.error().empty()) {
-        hint = panel_.error().c_str();
+        bottom = panel_.error();
+        bottom_color = colors.error;
     }
     else if (editing) {
-        hint = "0-9: type   Left/Right: -/+5   Enter: set   Esc: cancel";
+        bottom = "0-9: type   Left/Right: -/+5   Enter: set   Esc: cancel";
+    }
+    else if (!sensors.empty()) {
+        bottom = sensors;
+        bottom_color = colors.text;
     }
     else if (presets_focused) {
-        hint = "Left/Right: choose   Enter: apply   Up/Down: select";
+        bottom = "Left/Right: choose   Enter: apply   Up/Down: select";
     }
     else {
-        hint = "Left/Right: -/+5   Enter: type   Up/Down: select";
+        bottom = "Left/Right: -/+5   Enter: type   Up/Down: select";
     }
-    lv_label_set_text(hint_, hint);
-    lv_obj_set_style_text_color(hint_, panel_.error().empty() ? colors.text_disabled : colors.error, 0);
+    // Setting the same text again would restart the scroll of a line that does not fit.
+    if (bottom != lv_label_get_text(hint_)) {
+        lv_label_set_text(hint_, bottom.c_str());
+    }
+    lv_obj_set_style_text_color(hint_, bottom_color, 0);
+}
+
+void TemperatureScreen::sensor_timer_cb(lv_timer_t* timer) {
+    auto* screen = static_cast<TemperatureScreen*>(lv_timer_get_user_data(timer));
+    if (screen) {
+        screen->refresh();
+    }
 }
 
 bool TemperatureScreen::key_handler(uint32_t key, bool long_pressed, void* user_data) {

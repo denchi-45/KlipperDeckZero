@@ -215,8 +215,24 @@ void MoonrakerSession::query_printer_info() {
 }
 
 void MoonrakerSession::subscribe() {
+    // Ask which temperature sensors the printer has first, so they join the subscription.
     const auto epoch = connection_epoch_;
-    Json params = {{"objects", subscription_objects()}};
+    Json params = {{"objects", {{"heaters", {"available_sensors"}}}}};
+    client_.call("printer.objects.query", std::move(params), [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
+            return;
+        }
+        // Without the list the printer is still usable; only the extra sensors are missing.
+        const auto heaters = response.ok ? response.result.value("status", Json::object()).value("heaters", Json())
+                                         : Json();
+        subscribe_objects(extra_sensor_objects(heaters));
+    });
+}
+
+void MoonrakerSession::subscribe_objects(const std::vector<std::string>& sensor_objects) {
+    init_sensors(printer_, sensor_objects);
+    const auto epoch = connection_epoch_;
+    Json params = {{"objects", subscription_objects(sensor_objects)}};
     client_.call("printer.objects.subscribe", std::move(params), [this, epoch](const RpcResponse& response) {
         if (epoch != connection_epoch_) {
             return;

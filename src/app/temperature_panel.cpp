@@ -7,6 +7,7 @@
 #include "gcode.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace app {
 namespace {
@@ -25,6 +26,23 @@ std::string describe_target(const char* name, int target) {
 
 const std::vector<TemperaturePreset>& temperature_presets() {
     return kPresets;
+}
+
+std::string sensor_line(const std::vector<model::SensorState>& sensors, double device_celsius) {
+    std::string line;
+    const auto add = [&line](const std::string& name, bool known, double celsius) {
+        if (!line.empty()) {
+            line += "   ";
+        }
+        line += name + " " + (known ? std::to_string(static_cast<int>(std::lround(celsius))) : std::string("--"));
+    };
+    for (const auto& sensor : sensors) {
+        add(sensor.name, sensor.known, sensor.temperature);
+    }
+    if (device_celsius >= 0.0) {
+        add("CardputerZero", true, device_celsius);
+    }
+    return line;
 }
 
 std::string temperature_script(const TemperatureRequest& request) {

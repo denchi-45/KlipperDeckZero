@@ -13,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace moonraker {
 
@@ -86,6 +87,7 @@ private:
     void query_server_info();
     void query_printer_info();
     void subscribe();
+    void subscribe_objects(const std::vector<std::string>& sensor_objects);
     void schedule_server_info(std::chrono::milliseconds delay);
     void set_state(SessionState state);
     void set_error(const std::string& message);

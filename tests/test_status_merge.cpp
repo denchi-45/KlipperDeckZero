@@ -108,3 +108,22 @@ TEST_CASE("display_status progress takes precedence over file progress") {
     state.print_duration = 0.0;
     CHECK(state.estimated_remaining() < 0.0);
 }
+
+TEST_CASE("extra sensors skip the nozzle and bed and are named after the object") {
+    const auto objects = moonraker::extra_sensor_objects(json::parse(R"({
+        "available_sensors": ["temperature_sensor Micro4", "extruder", "heater_bed", "extruder1"]
+    })"));
+    CHECK_EQ(objects.size(), std::size_t{2});
+    CHECK_EQ(objects[0], std::string("temperature_sensor Micro4"));
+    CHECK(moonraker::extra_sensor_objects(json()).empty());
+
+    model::PrinterState state;
+    moonraker::init_sensors(state, objects);
+    CHECK_EQ(state.sensors[0].name, std::string("Micro4"));
+    CHECK_EQ(state.sensors[1].name, std::string("extruder1"));
+    CHECK(moonraker::subscription_objects(objects).contains("extruder1"));
+
+    // A null reading leaves the sensor unknown.
+    CHECK(!moonraker::apply_status(state, json::parse(R"({"extruder1": {"temperature": null}})")));
+    CHECK(!state.sensors[1].known);
+}

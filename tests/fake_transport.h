@@ -62,6 +62,18 @@ inline void reply(FakeTransport::Shared& shared,
            nlohmann::json{{"jsonrpc", "2.0"}, {"id", request["id"]}, {"result", result}}.dump());
 }
 
+inline void reply_error(FakeTransport::Shared& shared,
+                        const nlohmann::json& request,
+                        int code,
+                        const std::string& message) {
+    inject(shared,
+           moonraker::TransportEventType::Message,
+           nlohmann::json{{"jsonrpc", "2.0"},
+                          {"id", request["id"]},
+                          {"error", {{"code", code}, {"message", message}}}}
+               .dump());
+}
+
 inline void notify(FakeTransport::Shared& shared,
                    const std::string& method,
                    const nlohmann::json& params) {
