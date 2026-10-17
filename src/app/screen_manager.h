@@ -15,11 +15,15 @@
 
 namespace app {
 
+class PrinterCommands;
 class SettingsStore;
 
 class ScreenManager {
 public:
-    ScreenManager(viewmodel::BaseViewModel& view_model, AssetManager& assets, SettingsStore& settings);
+    ScreenManager(viewmodel::BaseViewModel& view_model,
+                  AssetManager& assets,
+                  SettingsStore& settings,
+                  PrinterCommands& commands);
     ~ScreenManager();
 
     ScreenManager(const ScreenManager&) = delete;
@@ -37,6 +41,7 @@ private:
     viewmodel::BaseViewModel& view_model_;
     AssetManager& assets_;
     SettingsStore& settings_;
+    PrinterCommands& commands_;
     std::unique_ptr<screen::BaseScreen> current_screen_;
     lv_observer_t* page_observer_ = nullptr;
     model::AppPage requested_page_ = model::AppPage::Status;

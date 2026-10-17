@@ -35,5 +35,6 @@ Claude Code(ターミナル)と claude.ai(GUI)のどちらで話した内容も�
 | ファイル | 内容 |
 |---|---|
 | [connection.md](connection.md) | Moonraker への接続方式、接続先の決め方、接続設定画面 |
+| [control-pages.md](control-pages.md) | 第2段階の操作画面(温度・押し出し・ファイル・印刷制御)と、画面から命令を送る仕組み |
 
 関連: 調査メモ [../moonraker_tech_notes.md](../moonraker_tech_notes.md)
