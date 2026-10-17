@@ -42,6 +42,18 @@
   印刷側の押し出しモード(絶対 / 相対)を変えないため。
 - 画面上部に、ノズル温度と「押し出せるか」を出す。
 
+### ファイル選択と印刷開始(`7`)
+
+- `app::FileBrowser`(`src/app/file_browser.*`)と `screen::FilesScreen`。
+- 画面を開くたびに `server.files.list`(`root=gcodes`)を取り、更新日時の新しい順に並べる。
+  Klipper が ready でなくても、Moonraker につながっていれば一覧は出る。
+- 5 行ぶんの行ウィジェットだけを作り、表示範囲をずらして描き直す(ファイルが多くても部品が増えない)。
+- `Enter` で `server.files.metadata` を取り、予想時間・フィラメント量・レイヤー高さ(と造形物の高さ)・初層温度を出す。
+  メタデータがないファイルも印刷できる。
+- もう一度 `Enter` で `printer.print.start`。印刷中・一時停止中は送らない。成功したら状態表示へ移る。
+- 応答が画面を閉じた後に届いても触らないよう、画面が `shared_ptr` の生存フラグを持ち、コールバックは `weak_ptr` で確かめる。
+- JSON の解析(`src/app/file_list_parser.*`)は moonraker のヘッダーを使うので、画面からは見えない別ファイルに分けた。
+
 ### 共通部品
 
 - キーの対応(`screen::to_panel_input`、`src/view/screens/panel_keys.*`)と、
@@ -67,4 +79,6 @@
 ## 未決事項 / TODO
 
 - プリセットを設定ファイルで変えられるようにするか。
-- ファイル / 印刷制御の画面。
+- 印刷制御の画面。
+- ファイル一覧を `notify_filelist_changed` で自動更新するか(今は画面を開くたびに取り直す)。
+- サムネイル表示。
