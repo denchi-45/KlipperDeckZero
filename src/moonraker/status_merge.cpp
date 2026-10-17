@@ -163,8 +163,9 @@ bool apply_status(model::PrinterState& state, const Json& status) {
     }
 
     if (const auto it = status.find("heater_bed"); it != status.end()) {
-        // Moonraker returns null for objects the printer does not have.
-        const bool present = it->is_object();
+        // For an object the printer does not have, the subscription answers null or, from Klipper,
+        // an empty object. Later diffs only name the bed when one of its fields changed.
+        const bool present = it->is_object() && !it->empty();
         if (state.has_heater_bed != present) {
             state.has_heater_bed = present;
             changed = true;
