@@ -6,6 +6,11 @@
 
 namespace app {
 
+bool restart_would_abort_print(moonraker::SessionState session, model::PrintState print) {
+    return session == moonraker::SessionState::Ready &&
+           (print == model::PrintState::Printing || print == model::PrintState::Paused);
+}
+
 RestartConfirm::Result RestartConfirm::press(RestartKind kind, bool printing, uint32_t now_ms) {
     if (printing) {
         cancel();

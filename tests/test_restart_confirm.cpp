@@ -50,3 +50,15 @@ TEST_CASE("restart confirm: survives tick wraparound") {
     CHECK(confirm.press(RestartKind::Klipper, false, 0xFFFFFF00u) == Result::Armed);
     CHECK(confirm.press(RestartKind::Klipper, false, 0x00000100u) == Result::Confirmed);
 }
+
+TEST_CASE("restart confirm: printing blocks only while the session is ready") {
+    using model::PrintState;
+    using moonraker::SessionState;
+    CHECK(app::restart_would_abort_print(SessionState::Ready, PrintState::Printing));
+    CHECK(app::restart_would_abort_print(SessionState::Ready, PrintState::Paused));
+    CHECK(!app::restart_would_abort_print(SessionState::Ready, PrintState::Standby));
+    CHECK(!app::restart_would_abort_print(SessionState::Ready, PrintState::Error));
+    // After a shutdown mid-print the stale state still says Printing; restart must stay possible.
+    CHECK(!app::restart_would_abort_print(SessionState::KlippyError, PrintState::Printing));
+    CHECK(!app::restart_would_abort_print(SessionState::WaitingKlippy, PrintState::Paused));
+}

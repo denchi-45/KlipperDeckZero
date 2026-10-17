@@ -146,9 +146,8 @@ private:
         }
 
         const bool klipper = kind == RestartKind::Klipper;
-        const auto print_state = session_->printer().print_state;
         const bool printing =
-            print_state == model::PrintState::Printing || print_state == model::PrintState::Paused;
+            restart_would_abort_print(session_->session_state(), session_->printer().print_state);
         switch (restart_confirm_.press(kind, printing, lv_tick_get())) {
             case RestartConfirm::Result::Blocked:
                 toast_->show("Can't restart while printing", view::widgets::ToastTone::Warning);
