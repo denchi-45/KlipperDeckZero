@@ -47,6 +47,9 @@ public:
     void set_failed(std::string error);
     // Ignored unless path is the file whose details are shown.
     void set_metadata(const std::string& path, const GcodeMetadata* metadata);
+    // The PNG thumbnail of the file at path (empty when it could not be read). Ignored unless
+    // path is the file whose details are shown.
+    void set_thumbnail(const std::string& path, std::string png);
 
     Result handle(PanelInput input);
 
@@ -58,6 +61,8 @@ public:
     const GcodeFile* selected_file() const;
     DetailsState details_state() const;
     const GcodeMetadata& metadata() const;
+    // PNG bytes of the shown file's thumbnail; empty until it is loaded.
+    const std::string& thumbnail() const;
     const std::string& error() const;
 
 private:
@@ -69,6 +74,7 @@ private:
     std::size_t top_{0};
     DetailsState details_state_{DetailsState::Loading};
     GcodeMetadata metadata_;
+    std::string thumbnail_;
     std::string error_;
 };
 

@@ -55,6 +55,37 @@ TEST_CASE("files: metadata keeps unknown fields unknown") {
     CHECK(metadata.bed_temperature < 0.0);
 }
 
+TEST_CASE("files: metadata lists the thumbnails and skips broken entries") {
+    const auto metadata = app::parse_metadata(moonraker::Json::parse(R"({
+        "thumbnails": [
+            {"width": 32, "height": 32, "size": 1102, "relative_path": ".thumbs/a-32x32.png"},
+            {"width": 300, "height": 300, "relative_path": ".thumbs/a-300x300.png"},
+            {"width": 48, "height": 48},
+            "not an object"
+        ]
+    })"));
+    CHECK(metadata.thumbnails.size() == 2);
+    CHECK(metadata.thumbnails[1].width == 300);
+    CHECK(metadata.thumbnails[1].relative_path == ".thumbs/a-300x300.png");
+    CHECK(app::parse_metadata(moonraker::Json::parse(R"({"thumbnails": null})")).thumbnails.empty());
+}
+
+TEST_CASE("files: the smallest thumbnail that fills the box is picked, else the largest") {
+    const std::vector<app::GcodeThumbnail> thumbnails = {
+        {32, 32, "a-32.png"}, {300, 300, "a-300.png"}, {96, 96, "a-96.png"}, {0, 0, "broken.png"}};
+    CHECK(app::pick_thumbnail(thumbnails, 76)->relative_path == "a-96.png");
+    CHECK(app::pick_thumbnail(thumbnails, 120)->relative_path == "a-300.png");
+    CHECK(app::pick_thumbnail(thumbnails, 400)->relative_path == "a-300.png");
+    CHECK(app::pick_thumbnail({{32, 32, "a-32.png"}}, 76)->relative_path == "a-32.png");
+    CHECK(app::pick_thumbnail({}, 76) == nullptr);
+    CHECK(app::pick_thumbnail({{0, 0, "broken.png"}}, 76) == nullptr);
+}
+
+TEST_CASE("files: thumbnail paths are relative to the file's directory") {
+    CHECK(app::thumbnail_path("a.gcode", ".thumbs/a.png") == ".thumbs/a.png");
+    CHECK(app::thumbnail_path("parts/v2/a.gcode", ".thumbs/a.png") == "parts/v2/.thumbs/a.png");
+}
+
 TEST_CASE("files: sizes and lengths are formatted for the list") {
     CHECK(app::format_size(512) == "512 B");
     CHECK(app::format_size(2048) == "2 KB");
@@ -114,6 +145,32 @@ TEST_CASE("files: enter opens details, enter again starts the print, escape goes
     CHECK(browser.handle(PanelInput::Escape) == Result::Handled);
     CHECK(browser.mode() == Mode::List);
     CHECK(browser.handle(PanelInput::Escape) == Result::Ignored);
+}
+
+TEST_CASE("files: the thumbnail belongs to the shown file and is dropped with its details") {
+    FileBrowser browser;
+    browser.set_files(numbered_files(2));
+    browser.set_thumbnail("file0.gcode", "png");
+    CHECK(browser.thumbnail().empty());
+
+    browser.handle(PanelInput::Enter);
+    browser.set_thumbnail("file1.gcode", "other png");
+    CHECK(browser.thumbnail().empty());
+    browser.set_thumbnail("file0.gcode", "png");
+    CHECK(browser.thumbnail() == "png");
+
+    browser.handle(PanelInput::Escape);
+    CHECK(browser.thumbnail().empty());
+    // Arrives after the details were closed.
+    browser.set_thumbnail("file0.gcode", "png");
+    CHECK(browser.thumbnail().empty());
+
+    browser.handle(PanelInput::Enter);
+    browser.set_thumbnail("file0.gcode", "png");
+    browser.handle(PanelInput::Escape);
+    browser.handle(PanelInput::Down);
+    browser.handle(PanelInput::Enter);
+    CHECK(browser.thumbnail().empty());
 }
 
 TEST_CASE("files: a file without metadata can still be printed") {

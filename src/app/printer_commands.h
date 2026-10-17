@@ -28,6 +28,8 @@ class BaseViewModel;
 
 namespace app {
 
+class ThumbnailSource;
+
 // Printer operations started from the pages. Reports the outcome of each one with a toast.
 class PrinterCommands {
 public:
@@ -35,6 +37,8 @@ public:
     using FilesHandler = std::function<void(std::vector<GcodeFile> files, const std::string& error)>;
     // metadata is nullptr when the file has none.
     using MetadataHandler = std::function<void(const GcodeMetadata* metadata)>;
+    // png is empty when the thumbnail could not be read.
+    using ThumbnailHandler = std::function<void(std::string png)>;
 
     PrinterCommands(view::widgets::Toast& toast, viewmodel::BaseViewModel& view_model);
 
@@ -43,6 +47,8 @@ public:
 
     // The session commands go to; nullptr while it is being replaced.
     void set_session(moonraker::MoonrakerSession* session);
+    // Where thumbnails come from; nullptr while the session is being replaced.
+    void set_thumbnail_source(ThumbnailSource* thumbnails);
     // Live printer state, or nullptr unless the session is ready.
     const model::PrinterState* printer() const;
 
@@ -53,6 +59,8 @@ public:
     // G-code files, newest first. Works while Klipper is not ready, as long as Moonraker is up.
     void list_files(FilesHandler handler);
     void file_metadata(const std::string& path, MetadataHandler handler);
+    // path is relative to the gcodes root (see thumbnail_path()).
+    void file_thumbnail(const std::string& path, ThumbnailHandler handler);
     // Refused while a print is running or paused. Shows the status page once it started.
     void start_print(const std::string& path);
 
@@ -72,6 +80,7 @@ private:
     view::widgets::Toast& toast_;
     viewmodel::BaseViewModel& view_model_;
     moonraker::MoonrakerSession* session_{nullptr};
+    ThumbnailSource* thumbnails_{nullptr};
 };
 
 } // namespace app

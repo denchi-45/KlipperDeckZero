@@ -6,6 +6,7 @@
 
 #include "application_config.h"
 #include "moonraker_session.h"
+#include "thumbnail_source.h"
 
 #include "lvgl.h"
 
@@ -30,6 +31,7 @@ public:
     void stop();
 
     moonraker::MoonrakerSession& session();
+    ThumbnailSource& thumbnails();
     void set_change_listener(ChangeListener listener);
 
 private:
@@ -37,6 +39,8 @@ private:
     void on_session_changed();
 
     std::unique_ptr<moonraker::MoonrakerSession> session_;
+    // Uses the session, so it is destroyed first.
+    std::unique_ptr<ThumbnailSource> thumbnails_;
     lv_timer_t* poll_timer_{nullptr};
     ChangeListener change_listener_;
     moonraker::SessionState logged_state_{moonraker::SessionState::Stopped};

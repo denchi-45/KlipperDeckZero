@@ -442,10 +442,12 @@ int Application::run() {
                              const MoonrakerConfig& moonraker) {
         shortcuts.set_session(nullptr);
         commands.set_session(nullptr);
+        commands.set_thumbnail_source(nullptr);
         printer_service.reset();
         printer_service = std::make_unique<PrinterService>(moonraker);
         shortcuts.set_session(&printer_service->session());
         commands.set_session(&printer_service->session());
+        commands.set_thumbnail_source(&printer_service->thumbnails());
         printer_service->set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
             view_model.update_printer(session);
         });

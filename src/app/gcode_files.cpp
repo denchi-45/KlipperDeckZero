@@ -6,9 +6,33 @@
 
 #include "printer_format.h"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace app {
+
+const GcodeThumbnail* pick_thumbnail(const std::vector<GcodeThumbnail>& thumbnails, int box_size) {
+    const GcodeThumbnail* fitting = nullptr;
+    const GcodeThumbnail* largest = nullptr;
+    for (const auto& thumbnail : thumbnails) {
+        if (thumbnail.width <= 0 || thumbnail.height <= 0 || thumbnail.relative_path.empty()) {
+            continue;
+        }
+        const int side = std::min(thumbnail.width, thumbnail.height);
+        if (side >= box_size && (!fitting || side < std::min(fitting->width, fitting->height))) {
+            fitting = &thumbnail;
+        }
+        if (!largest || side > std::min(largest->width, largest->height)) {
+            largest = &thumbnail;
+        }
+    }
+    return fitting ? fitting : largest;
+}
+
+std::string thumbnail_path(const std::string& gcode_path, const std::string& relative_path) {
+    const auto slash = gcode_path.rfind('/');
+    return slash == std::string::npos ? relative_path : gcode_path.substr(0, slash + 1) + relative_path;
+}
 
 std::string format_size(std::uint64_t bytes) {
     char buffer[24];

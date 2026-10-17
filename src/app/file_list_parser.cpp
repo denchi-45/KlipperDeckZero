@@ -57,6 +57,20 @@ GcodeMetadata parse_metadata(const moonraker::Json& result) {
     metadata.layer_height = number_or(result, "layer_height", -1.0);
     metadata.nozzle_temperature = number_or(result, "first_layer_extr_temp", -1.0);
     metadata.bed_temperature = number_or(result, "first_layer_bed_temp", -1.0);
+    if (const auto it = result.find("thumbnails"); it != result.end() && it->is_array()) {
+        for (const auto& entry : *it) {
+            if (!entry.is_object()) {
+                continue;
+            }
+            GcodeThumbnail thumbnail;
+            thumbnail.width = static_cast<int>(number_or(entry, "width", 0.0));
+            thumbnail.height = static_cast<int>(number_or(entry, "height", 0.0));
+            thumbnail.relative_path = string_or(entry, "relative_path");
+            if (!thumbnail.relative_path.empty()) {
+                metadata.thumbnails.push_back(std::move(thumbnail));
+            }
+        }
+    }
     return metadata;
 }
 
