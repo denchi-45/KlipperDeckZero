@@ -613,6 +613,10 @@ target_link_libraries(${PROJECT_NAME}_core
         ${PROJECT_NAME}_platform
 )
 
+# The screens use the page logic in src/app (e.g. app::FileBrowser), so the view library depends
+# on the core library too. CMake repeats the two static libraries on the link line for the cycle.
+target_link_libraries(${PROJECT_NAME}_view PUBLIC ${PROJECT_NAME}_core)
+
 if(USE_DESKTOP)
     target_link_libraries(${PROJECT_NAME}_core
         PRIVATE
