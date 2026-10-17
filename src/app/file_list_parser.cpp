@@ -57,11 +57,6 @@ GcodeMetadata parse_metadata(const moonraker::Json& result) {
     metadata.layer_height = number_or(result, "layer_height", -1.0);
     metadata.nozzle_temperature = number_or(result, "first_layer_extr_temp", -1.0);
     metadata.bed_temperature = number_or(result, "first_layer_bed_temp", -1.0);
-    metadata.slicer = string_or(result, "slicer");
-    const auto version = string_or(result, "slicer_version");
-    if (!metadata.slicer.empty() && !version.empty()) {
-        metadata.slicer += " " + version;
-    }
     return metadata;
 }
 

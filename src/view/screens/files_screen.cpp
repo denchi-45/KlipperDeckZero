@@ -30,16 +30,16 @@ std::string whole_degrees(double celsius) {
     return celsius < 0.0 ? std::string("--") : std::to_string(static_cast<int>(std::lround(celsius)));
 }
 
-// One line per detail, matching kDetailKeys, so the two labels line up.
-constexpr const char* kDetailKeys = "Time\nFilament\nLayer\nTemps\nSlicer";
+// One line per detail, matching kDetailKeys, so the two labels line up. Four lines fit
+// between the file name and the hint.
+constexpr const char* kDetailKeys = "Time\nFilament\nLayer\nTemps";
 
 std::string detail_values(const app::GcodeMetadata& metadata) {
     return app::format_duration(metadata.estimated_time) + "\n" +
            app::format_filament(metadata.filament_total) + "\n" +
            app::format_millimeters(metadata.layer_height) + "  (height " +
            app::format_millimeters(metadata.object_height) + ")\n" +
-           whole_degrees(metadata.nozzle_temperature) + " / " + whole_degrees(metadata.bed_temperature) + "\n" +
-           (metadata.slicer.empty() ? std::string("--") : metadata.slicer);
+           whole_degrees(metadata.nozzle_temperature) + " / " + whole_degrees(metadata.bed_temperature);
 }
 
 } // namespace

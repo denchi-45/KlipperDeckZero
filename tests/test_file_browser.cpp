@@ -49,7 +49,6 @@ TEST_CASE("files: metadata keeps unknown fields unknown") {
     })"));
     CHECK(metadata.estimated_time == 3723.0);
     CHECK(metadata.filament_total == 4520.0);
-    CHECK(metadata.slicer == "PrusaSlicer 2.8.1");
     CHECK(metadata.layer_height < 0.0);
     CHECK(metadata.object_height < 0.0);
     CHECK(metadata.nozzle_temperature == 215.0);

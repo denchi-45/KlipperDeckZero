@@ -16,7 +16,7 @@ struct GcodeFile {
     std::uint64_t size{0};
 };
 
-// Fields of `server.files.metadata` shown before printing; negative / empty when unknown.
+// Fields of `server.files.metadata` shown before printing; negative when unknown.
 struct GcodeMetadata {
     double estimated_time{-1.0}; // seconds
     double filament_total{-1.0}; // mm
@@ -24,7 +24,6 @@ struct GcodeMetadata {
     double layer_height{-1.0};   // mm
     double nozzle_temperature{-1.0}; // first layer
     double bed_temperature{-1.0};    // first layer
-    std::string slicer;
 };
 
 // "512 B", "850 KB", "12.3 MB"
