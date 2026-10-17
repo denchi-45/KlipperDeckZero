@@ -30,6 +30,12 @@
   もう一度 `Enter` で送信、`ESC` で取消。上限はノズル 350、ベッド 150。実際の上限は Klipper の `max_temp` が判定する。
 - プリセット: PLA 200/60、PETG 235/80、Off。コードに固定。
 - 送信する G-code: `SET_HEATER_TEMPERATURE HEATER=extruder|heater_bed TARGET=<n>`。プリセットは 2 行を 1 回で送る。
+- 最下行には、ノズル・ベッド以外の温度センサーと、この端末の CPU 温度を並べる(入力中・エラー時は操作説明やエラーを優先)。
+  - センサーは購読の前に `printer.objects.query` で `heaters.available_sensors` を聞き、その `temperature` も購読に加える。
+    聞けなかったときはセンサーなしで購読する。表示名はオブジェクト名の空白より後(`temperature_sensor mcu` → `mcu`)。
+  - CPU 温度は `/sys/class/thermal` のうち type に `cpu` を含むゾーンを読む(バッテリー等の別ゾーンは使わない)。
+    キー入力がなくても変わるので、2 秒ごとに描き直す。
+  - 1 行に入らないときは横にスクロールする。
 
 ### 押し出し / 引き戻し(`6`)
 
