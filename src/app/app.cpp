@@ -10,6 +10,7 @@
 #include "asset_manager.h"
 #include "help_popup.h"
 #include "logger.h"
+#include "printer_commands.h"
 #include "linux_input.h"
 #include "printer_service.h"
 #include "restart_confirm.h"
@@ -108,11 +109,12 @@ bool has_moonraker_setting(const std::vector<Setting>& settings) {
 
 class ShortcutController {
 public:
-    ShortcutController(viewmodel::BaseViewModel& view_model, AssetManager& assets)
+    ShortcutController(viewmodel::BaseViewModel& view_model,
+                       AssetManager& assets,
+                       view::widgets::Toast& toast)
         : view_model_(view_model),
-          toast_(std::make_unique<view::widgets::Toast>(lv_layer_top(), view_model, assets)),
+          toast_(&toast),
           help_popup_(std::make_unique<view::widgets::HelpPopup>(lv_layer_top(), view_model, assets)) {
-        toast_->build();
         help_popup_->build();
         platform::set_global_key_listener(global_key_listener, this);
         platform::set_key_release_listener(key_release_listener, this);
@@ -315,7 +317,7 @@ private:
     }
 
     viewmodel::BaseViewModel& view_model_;
-    std::unique_ptr<view::widgets::Toast> toast_;
+    view::widgets::Toast* toast_;
     std::unique_ptr<view::widgets::HelpPopup> help_popup_;
     moonraker::MoonrakerSession* session_{nullptr};
     RestartConfirm restart_confirm_;
@@ -423,18 +425,27 @@ int Application::run() {
 
     SettingsStore settings(config, user_config_path);
 
-    ScreenManager screen_manager(view_model, assets, settings);
+    // Shared by the shortcuts and the page commands; created first so it outlives both.
+    view::widgets::Toast toast(lv_layer_top(), view_model, assets);
+    toast.build();
+    PrinterCommands commands(toast);
+
+    ScreenManager screen_manager(view_model, assets, settings, commands);
     screen_manager.start();
-    ShortcutController shortcuts(view_model, assets);
+    ShortcutController shortcuts(view_model, assets, toast);
 
     // Recreated whenever the connection settings change, so new settings apply without a restart.
-    // Declared after the shortcuts so it is destroyed first: pending RPC handlers point at them.
+    // Declared after the shortcuts and commands so it is destroyed first: pending RPC handlers
+    // point at them.
     std::unique_ptr<PrinterService> printer_service;
-    const auto connect = [&view_model, &printer_service, &shortcuts](const MoonrakerConfig& moonraker) {
+    const auto connect = [&view_model, &printer_service, &shortcuts, &commands](
+                             const MoonrakerConfig& moonraker) {
         shortcuts.set_session(nullptr);
+        commands.set_session(nullptr);
         printer_service.reset();
         printer_service = std::make_unique<PrinterService>(moonraker);
         shortcuts.set_session(&printer_service->session());
+        commands.set_session(&printer_service->session());
         printer_service->set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
             view_model.update_printer(session);
         });

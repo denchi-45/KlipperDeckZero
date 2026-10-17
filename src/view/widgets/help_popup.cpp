@@ -36,6 +36,14 @@ constexpr HelpRow kPageRows[] = {
     {"D", "Light / dark theme"},
 };
 
+constexpr HelpRow kTemperatureRows[] = {
+    {"UP / DOWN", "Nozzle / bed / presets"},
+    {"LEFT / RIGHT", "-/+ 5, or pick a preset"},
+    {"ENTER", "Type a target / apply"},
+    {"ESC", "Cancel edit / back"},
+    {"4 - 8", "Switch page"},
+};
+
 constexpr HelpRow kSettingsRows[] = {
     {"UP / DOWN", "Select a row"},
     {"ENTER", "Edit / change / save"},
@@ -57,6 +65,8 @@ HelpRows rows_for(model::AppPage page) {
     switch (page) {
         case model::AppPage::Status:
             return rows_of(kHomeRows);
+        case model::AppPage::Temperature:
+            return rows_of(kTemperatureRows);
         case model::AppPage::Settings:
             return rows_of(kSettingsRows);
         default:

@@ -27,10 +27,13 @@ add_executable(kdz_tests
     test_printer_format.cpp
     test_settings_form.cpp
     test_restart_confirm.cpp
+    test_temperature_panel.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/gcode.cpp"
     "${KDZ_SOURCE_DIR}/src/app/restart_confirm.cpp"
     "${KDZ_SOURCE_DIR}/src/app/settings_form.cpp"
     "${KDZ_SOURCE_DIR}/src/app/settings_store.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/temperature_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/viewmodel/printer_format.cpp"
 )
 

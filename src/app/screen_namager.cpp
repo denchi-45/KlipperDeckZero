@@ -9,6 +9,7 @@
 #include "placeholder_screen.h"
 #include "settings_screen.h"
 #include "status_screen.h"
+#include "temperature_screen.h"
 
 namespace app {
 namespace {
@@ -33,8 +34,9 @@ void current_page_observer(lv_observer_t* observer, lv_subject_t* subject) {
 
 ScreenManager::ScreenManager(viewmodel::BaseViewModel& view_model,
                              AssetManager& assets,
-                             SettingsStore& settings)
-    : view_model_(view_model), assets_(assets), settings_(settings) {}
+                             SettingsStore& settings,
+                             PrinterCommands& commands)
+    : view_model_(view_model), assets_(assets), settings_(settings), commands_(commands) {}
 
 ScreenManager::~ScreenManager() {
     lv_async_call_cancel(flush_requested_page_async, this);
@@ -59,6 +61,9 @@ void ScreenManager::start() {
 void ScreenManager::show_screen(model::AppPage page) {
     if (page == model::AppPage::Status) {
         load_screen(std::make_unique<screen::StatusScreen>(view_model_, assets_));
+    }
+    else if (page == model::AppPage::Temperature) {
+        load_screen(std::make_unique<screen::TemperatureScreen>(view_model_, assets_, commands_));
     }
     else if (page == model::AppPage::Settings) {
         load_screen(std::make_unique<screen::SettingsScreen>(view_model_, assets_, settings_));
