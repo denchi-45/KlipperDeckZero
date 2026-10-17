@@ -70,6 +70,7 @@ BaseViewModel::BaseViewModel()
       nozzle_temperature_("--"),
       nozzle_target_("off"),
       nozzle_power_(0),
+      nozzle_can_extrude_(false),
       bed_available_(true),
       bed_temperature_("--"),
       bed_target_("off"),
@@ -158,6 +159,7 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
     set_if_changed(nozzle_temperature_, ready ? format::temperature(printer.extruder.temperature) : "--");
     set_if_changed(nozzle_target_, ready ? format::target(printer.extruder.target) : "off");
     set_if_changed(nozzle_power_, ready ? to_percent(printer.extruder.power) : 0);
+    set_if_changed(nozzle_can_extrude_, ready && printer.extruder.can_extrude);
     set_if_changed(bed_available_, !ready || printer.has_heater_bed);
     set_if_changed(bed_temperature_, ready ? format::temperature(printer.heater_bed.temperature) : "--");
     set_if_changed(bed_target_, ready ? format::target(printer.heater_bed.target) : "off");
@@ -222,6 +224,10 @@ lv_subject_t* BaseViewModel::nozzle_target_subject() {
 
 lv_subject_t* BaseViewModel::nozzle_power_subject() {
     return nozzle_power_.native();
+}
+
+lv_subject_t* BaseViewModel::nozzle_can_extrude_subject() {
+    return nozzle_can_extrude_.native();
 }
 
 lv_subject_t* BaseViewModel::bed_available_subject() {

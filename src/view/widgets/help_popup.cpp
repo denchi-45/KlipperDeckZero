@@ -44,6 +44,14 @@ constexpr HelpRow kTemperatureRows[] = {
     {"4 - 8", "Switch page"},
 };
 
+constexpr HelpRow kExtruderRows[] = {
+    {"UP / DOWN", "Length / speed / direction"},
+    {"LEFT / RIGHT", "Change the selection"},
+    {"ENTER", "Extrude or retract"},
+    {"ESC", "Back to status"},
+    {"4 - 8", "Switch page"},
+};
+
 constexpr HelpRow kSettingsRows[] = {
     {"UP / DOWN", "Select a row"},
     {"ENTER", "Edit / change / save"},
@@ -67,6 +75,8 @@ HelpRows rows_for(model::AppPage page) {
             return rows_of(kHomeRows);
         case model::AppPage::Temperature:
             return rows_of(kTemperatureRows);
+        case model::AppPage::Extruder:
+            return rows_of(kExtruderRows);
         case model::AppPage::Settings:
             return rows_of(kSettingsRows);
         default:

@@ -18,4 +18,12 @@ std::string set_heater_temperature(Heater heater, int celsius) {
            " TARGET=" + std::to_string(celsius);
 }
 
+std::string move_extruder(int length_mm, int speed_mm_s) {
+    const int feed_mm_min = (speed_mm_s > 0 ? speed_mm_s : 1) * 60;
+    return "SAVE_GCODE_STATE NAME=kdz_extruder\n"
+           "M83\n"
+           "G1 E" + std::to_string(length_mm) + " F" + std::to_string(feed_mm_min) + "\n"
+           "RESTORE_GCODE_STATE NAME=kdz_extruder";
+}
+
 } // namespace app::gcode
