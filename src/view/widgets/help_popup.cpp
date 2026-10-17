@@ -27,6 +27,7 @@ constexpr HelpRow kHomeRows[] = {
     {"7 / 8", "Files / Print control"},
     {"S", "Connection settings"},
     {"D", "Light / dark theme"},
+    {"R / F  x2", "Restart Klipper / MCU"},
 };
 
 constexpr HelpRow kPageRows[] = {

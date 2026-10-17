@@ -315,6 +315,10 @@ void MoonrakerSession::emergency_stop(ResultHandler handler) {
     call("printer.emergency_stop", Json(), std::move(handler));
 }
 
+void MoonrakerSession::restart(ResultHandler handler) {
+    call("printer.restart", Json(), std::move(handler));
+}
+
 void MoonrakerSession::firmware_restart(ResultHandler handler) {
     call("printer.firmware_restart", Json(), std::move(handler));
 }

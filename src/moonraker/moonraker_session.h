@@ -72,6 +72,9 @@ public:
     void print_resume(ResultHandler handler = {});
     void print_cancel(ResultHandler handler = {});
     void emergency_stop(ResultHandler handler = {});
+    // RESTART: reloads the config and restarts the Klipper host software.
+    void restart(ResultHandler handler = {});
+    // FIRMWARE_RESTART: also resets the MCUs, which recovers an MCU shutdown.
     void firmware_restart(ResultHandler handler = {});
     void call(const std::string& method, Json params, ResultHandler handler = {},
               std::chrono::milliseconds timeout = JsonRpcClient::kDefaultTimeout);

@@ -62,6 +62,7 @@ public:
     lv_subject_t* overlay_title_subject();
     lv_subject_t* overlay_detail_subject();
     lv_subject_t* overlay_tone_subject();        // format::Tone
+    lv_subject_t* overlay_hint_subject();
 
 private:
     void publish_all();
@@ -93,6 +94,7 @@ private:
     reactive::StringSubject<48> overlay_title_;
     reactive::StringSubject<256> overlay_detail_;
     reactive::IntSubject overlay_tone_;
+    reactive::StringSubject<64> overlay_hint_;
 };
 
 } // namespace viewmodel
