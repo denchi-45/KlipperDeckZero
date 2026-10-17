@@ -31,6 +31,22 @@
 - プリセット: PLA 200/60、PETG 235/80、Off。コードに固定。
 - 送信する G-code: `SET_HEATER_TEMPERATURE HEATER=extruder|heater_bed TARGET=<n>`。プリセットは 2 行を 1 回で送る。
 
+### 押し出し / 引き戻し(`6`)
+
+- `app::ExtruderPanel`(`src/app/extruder_panel.*`)と `screen::ExtruderScreen`。
+- 行: 長さ(1 / 5 / 10 / 25 / 50 mm、既定 10)/ 速度(2 / 5 / 10 mm/s、既定 5)/ 向き(引き戻し / 押し出し)。
+  `←`/`→` で変え、`Enter` はどの行からでも実行する。数字入力はしない(数字キーはページ切替に残す)。
+- 実行しない条件(`extrude_block_reason`): 印刷中、`extruder.can_extrude` が false(ノズルが `min_extrude_temp` 未満)。
+  一時停止中はフィラメント交換のために実行できる。
+- 送る G-code: `SAVE_GCODE_STATE` → `M83` → `G1 E<±長さ> F<速度×60>` → `RESTORE_GCODE_STATE`。
+  印刷側の押し出しモード(絶対 / 相対)を変えないため。
+- 画面上部に、ノズル温度と「押し出せるか」を出す。
+
+### 共通部品
+
+- キーの対応(`screen::to_panel_input`、`src/view/screens/panel_keys.*`)と、
+  行・選択肢の見た目(`view::widgets::style_panel_row` / `style_chip`、`src/view/widgets/panel_style.*`)は画面間で共用する。
+
 ### 実機での確認方法
 
 実機の Klipper を動かさずに確かめるため、実機上で疑似 Moonraker(`fake_moonraker`)をポート 7126 で動かし、
@@ -51,4 +67,4 @@
 ## 未決事項 / TODO
 
 - プリセットを設定ファイルで変えられるようにするか。
-- 押し出し / ファイル / 印刷制御の画面。
+- ファイル / 印刷制御の画面。
