@@ -135,12 +135,19 @@ void read_network(DeviceStatus& status) {
 
 #if !USE_DESKTOP
 // The "cpu-thermal" zone; other zones (e.g. the battery gauge) report unrelated temperatures.
+// Cooling devices live in the same directory and may also say "cpu" (thermal-cpufreq-0), so only zones count.
 std::filesystem::path find_cpu_thermal_zone() {
     std::error_code ec;
-    for (const auto& entry : std::filesystem::directory_iterator(APP_THERMAL_CLASS_ROOT, ec)) {
+    std::filesystem::directory_iterator it(APP_THERMAL_CLASS_ROOT, ec);
+    // Step with increment(ec): the range-for operator++ throws on errors.
+    for (; !ec && it != std::filesystem::directory_iterator(); it.increment(ec)) {
+        const auto& path = it->path();
+        if (path.filename().string().rfind("thermal_zone", 0) != 0) {
+            continue;
+        }
         std::string type;
-        if (read_text_file(entry.path() / "type", type) && type.find("cpu") != std::string::npos) {
-            return entry.path();
+        if (read_text_file(path / "type", type) && type.find("cpu") != std::string::npos) {
+            return path;
         }
     }
     return {};
