@@ -161,11 +161,18 @@ void ControlScreen::build_stat(lv_obj_t* parent, const char* icon_text, lv_subje
 bool ControlScreen::handle_key(uint32_t key, bool long_pressed) {
     app::PanelInput input{};
     if (!to_panel_input(key, input)) {
+        // Any other key (e.g. D) abandons a pending cancel, like the keys the panel knows.
+        panel_.disarm();
+        message_.clear();
+        refresh();
         return false;
     }
 
     const auto result = panel_.handle(input, long_pressed, print_state(), lv_tick_get());
     if (result == app::ControlPanel::Result::Ignored) {
+        // The panel may have abandoned a pending cancel; show that before the shortcut runs.
+        message_.clear();
+        refresh();
         return false;
     }
 
