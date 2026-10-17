@@ -33,10 +33,10 @@ void FileBrowser::set_failed(std::string error) {
     error_ = std::move(error);
 }
 
-void FileBrowser::set_metadata(const std::string& path, const GcodeMetadata* metadata) {
+bool FileBrowser::set_metadata(const std::string& path, const GcodeMetadata* metadata) {
     const auto* file = selected_file();
     if (mode_ != Mode::Details || !file || file->path != path) {
-        return;
+        return false;
     }
     if (metadata) {
         metadata_ = *metadata;
@@ -45,6 +45,15 @@ void FileBrowser::set_metadata(const std::string& path, const GcodeMetadata* met
     else {
         details_state_ = DetailsState::Unavailable;
     }
+    return true;
+}
+
+void FileBrowser::set_thumbnail(const std::string& path, std::string png) {
+    const auto* file = selected_file();
+    if (mode_ != Mode::Details || !file || file->path != path) {
+        return;
+    }
+    thumbnail_ = std::move(png);
 }
 
 FileBrowser::Result FileBrowser::handle(PanelInput input) {
@@ -87,6 +96,7 @@ FileBrowser::Result FileBrowser::handle(PanelInput input) {
                     mode_ = Mode::Details;
                     details_state_ = DetailsState::Loading;
                     metadata_ = {};
+                    thumbnail_.clear();
                     return Result::OpenDetails;
                 default:
                     return Result::Ignored;
@@ -98,6 +108,7 @@ FileBrowser::Result FileBrowser::handle(PanelInput input) {
             }
             if (input == PanelInput::Escape || input == PanelInput::Backspace) {
                 mode_ = Mode::List;
+                thumbnail_.clear();
             }
             return Result::Handled;
     }
@@ -130,6 +141,10 @@ FileBrowser::DetailsState FileBrowser::details_state() const {
 
 const GcodeMetadata& FileBrowser::metadata() const {
     return metadata_;
+}
+
+const std::string& FileBrowser::thumbnail() const {
+    return thumbnail_;
 }
 
 const std::string& FileBrowser::error() const {

@@ -56,6 +56,16 @@
 - 5 行ぶんの行ウィジェットだけを作り、表示範囲をずらして描き直す(ファイルが多くても部品が増えない)。
 - `Enter` で `server.files.metadata` を取り、予想時間・フィラメント量・レイヤー高さ(と造形物の高さ)・初層温度を出す。
   メタデータがないファイルも印刷できる。
+- 詳細ではファイル名の下、詳細の 4 行の左に 64px 四方のサムネイルを出す。
+  - メタデータの `thumbnails` から、枠を満たす最小のもの(なければ最大のもの)を選び、枠に合わせて縮小する。
+    サムネイルのないファイルでは枠を隠し、詳細を左に寄せる。
+  - 取得元は `app::ThumbnailSource`(`src/app/thumbnail_source.*`)。接続の種類で取り方を変える。
+    - unix ソケット: Moonraker は同じ端末にいるので、`server.files.roots` で gcodes のディレクトリを一度聞き、ファイルを直接読む。
+    - WebSocket: 同じホストの `http://<host>:<port>/server/files/gcodes/<path>` から HTTP で取る(`moonraker::HttpGetter`、
+      IXWebSocket の HttpClient)。結果は `JsonRpcClient` と同じくキューに積み、LVGL のスレッドから `poll()` で渡す。
+  - PNG はメモリのまま `lv_image_dsc_t` に包んで libpng デコーダーに渡す(ディスクにキャッシュしない)。
+    同じ記述子を使い回すので、差し替える前に `lv_image_cache_drop()` でデコード済みの画像を捨てる。
+  - 詳細の 4 行は Noto CJK だと高いので、行間を 2px 詰めてファイル名と合わせて枠に収める。
 - もう一度 `Enter` で `printer.print.start`。印刷中・一時停止中は送らない。成功したら状態表示へ移る。
 - 応答が画面を閉じた後に届いても触らないよう、画面が `shared_ptr` の生存フラグを持ち、コールバックは `weak_ptr` で確かめる。
 - JSON の解析(`src/app/file_list_parser.*`)は moonraker のヘッダーを使うので、画面からは見えない別ファイルに分けた。
@@ -99,4 +109,5 @@
 
 - プリセットを設定ファイルで変えられるようにするか。
 - ファイル一覧を `notify_filelist_changed` で自動更新するか(今は画面を開くたびに取り直す)。
-- サムネイル表示。
+- 印刷中の状態表示にもサムネイルを出すか。
+- `fake_moonraker` は HTTP を持たないので、デスクトップではサムネイルが出ない。

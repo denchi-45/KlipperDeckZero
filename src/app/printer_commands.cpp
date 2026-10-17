@@ -9,6 +9,7 @@
 #include "gcode.h"
 #include "logger.h"
 #include "moonraker_session.h"
+#include "thumbnail_source.h"
 #include "toast.h"
 
 namespace app {
@@ -26,6 +27,10 @@ PrinterCommands::PrinterCommands(view::widgets::Toast& toast, viewmodel::BaseVie
 
 void PrinterCommands::set_session(moonraker::MoonrakerSession* session) {
     session_ = session;
+}
+
+void PrinterCommands::set_thumbnail_source(ThumbnailSource* thumbnails) {
+    thumbnails_ = thumbnails;
 }
 
 const model::PrinterState* PrinterCommands::printer() const {
@@ -83,6 +88,19 @@ void PrinterCommands::file_metadata(const std::string& path, MetadataHandler han
                        const auto metadata = parse_metadata(response.result);
                        handler(&metadata);
                    });
+}
+
+void PrinterCommands::file_thumbnail(const std::string& path, ThumbnailHandler handler) {
+    if (!thumbnails_) {
+        handler({});
+        return;
+    }
+    thumbnails_->fetch(path, [path, handler = std::move(handler)](std::string png, const std::string& error) {
+        if (!error.empty()) {
+            LOG_WARN("thumbnail {}: {}", path, error);
+        }
+        handler(std::move(png));
+    });
 }
 
 void PrinterCommands::start_print(const std::string& path) {

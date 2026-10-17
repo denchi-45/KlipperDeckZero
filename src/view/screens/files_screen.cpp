@@ -12,6 +12,9 @@
 #include "printer_commands.h"
 #include "theme.h"
 
+// lv_image_cache_drop() is not part of lvgl.h in LVGL 9.5.
+#include "src/misc/cache/lv_cache.h"
+
 #include <cmath>
 #include <string>
 
@@ -22,7 +25,13 @@ constexpr int32_t kRowHeight = 17;
 constexpr int32_t kSizeWidth = 58;
 // Content width minus the column and row padding, the size column and a gap.
 constexpr int32_t kNameWidth = view::kScreenWidth - 16 - 10 - kSizeWidth - 6;
-constexpr int32_t kDetailValueX = 64;
+constexpr int32_t kDetailValueX = 52;
+constexpr int32_t kDetailLineSpace = -2;
+// Square left of the detail lines, as tall as the four of them.
+constexpr int32_t kThumbnailSize = 64;
+constexpr char kPngSignature[] = "\x89PNG\r\n\x1a\n";
+// Signature, IHDR length and type, width and height.
+constexpr std::size_t kPngHeaderBytes = 24;
 
 const lv_font_t* font_or(const lv_font_t* font, const lv_font_t* fallback) {
     return font ? font : fallback;
@@ -57,6 +66,11 @@ FilesScreen::FilesScreen(viewmodel::BaseViewModel& view_model,
 
 FilesScreen::~FilesScreen() {
     platform::clear_screen_key_handler(key_handler, this);
+    // The image and the decoded copy in the cache point at png_, which goes away with the screen.
+    if (thumbnail_) {
+        lv_image_set_src(thumbnail_, nullptr);
+    }
+    lv_image_cache_drop(&png_dsc_);
 }
 
 void FilesScreen::build_content(lv_obj_t* content) {
@@ -142,17 +156,46 @@ void FilesScreen::build_details(lv_obj_t* parent) {
     lv_obj_set_size(details_title_, LV_PCT(100), lv_font_get_line_height(body_font_));
     lv_obj_set_style_text_font(details_title_, body_font_, 0);
 
-    auto* table = lv_obj_create(details_box_);
+    // The thumbnail and the detail lines side by side under the name.
+    auto* row = lv_obj_create(details_box_);
+    lv_obj_remove_style_all(row);
+    lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_column(row, 6, 0);
+    lv_obj_clear_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Hidden for files without a thumbnail, so the details start at the left edge.
+    thumbnail_frame_ = lv_obj_create(row);
+    lv_obj_remove_style_all(thumbnail_frame_);
+    lv_obj_set_size(thumbnail_frame_, kThumbnailSize, kThumbnailSize);
+    lv_obj_set_style_radius(thumbnail_frame_, 3, 0);
+    lv_obj_set_style_bg_opa(thumbnail_frame_, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(thumbnail_frame_, 1, 0);
+    lv_obj_set_style_pad_all(thumbnail_frame_, 1, 0);
+    lv_obj_clear_flag(thumbnail_frame_, LV_OBJ_FLAG_SCROLLABLE);
+
+    thumbnail_ = lv_image_create(thumbnail_frame_);
+    lv_obj_set_size(thumbnail_, LV_PCT(100), LV_PCT(100));
+    // Slicers write 300x300 and smaller; scale whichever was picked to fit the frame.
+    lv_image_set_inner_align(thumbnail_, LV_IMAGE_ALIGN_CONTAIN);
+    lv_image_set_antialias(thumbnail_, true);
+
+    auto* table = lv_obj_create(row);
     lv_obj_remove_style_all(table);
-    lv_obj_set_size(table, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_height(table, LV_SIZE_CONTENT);
+    lv_obj_set_flex_grow(table, 1);
     lv_obj_clear_flag(table, LV_OBJ_FLAG_SCROLLABLE);
 
+    // Noto CJK lines are tall; without tightening, the last line falls below the box.
     details_keys_ = lv_label_create(table);
     lv_label_set_text(details_keys_, kDetailKeys);
     lv_obj_set_style_text_font(details_keys_, small_font_, 0);
+    lv_obj_set_style_text_line_space(details_keys_, kDetailLineSpace, 0);
 
     details_body_ = lv_label_create(table);
     lv_obj_set_style_text_font(details_body_, small_font_, 0);
+    lv_obj_set_style_text_line_space(details_body_, kDetailLineSpace, 0);
 }
 
 bool FilesScreen::handle_key(uint32_t key, bool long_pressed) {
@@ -211,9 +254,35 @@ void FilesScreen::load_metadata() {
         if (alive.expired()) {
             return;
         }
-        browser_.set_metadata(path, metadata);
+        // A late response, e.g. after going back to the list, must not fetch a thumbnail: the
+        // browser still holds the old metadata, and another file may be selected by now.
+        if (browser_.set_metadata(path, metadata)) {
+            load_thumbnail();
+        }
         refresh();
     });
+}
+
+void FilesScreen::load_thumbnail() {
+    const auto* file = browser_.selected_file();
+    if (!file || browser_.mode() != app::FileBrowser::Mode::Details ||
+        browser_.details_state() != app::FileBrowser::DetailsState::Loaded) {
+        return;
+    }
+    const auto* thumbnail = app::pick_thumbnail(browser_.metadata().thumbnails, kThumbnailSize);
+    if (!thumbnail) {
+        return;
+    }
+    std::weak_ptr<bool> alive = alive_;
+    const std::string path = file->path;
+    commands_.file_thumbnail(app::thumbnail_path(path, thumbnail->relative_path),
+                             [this, alive, path](std::string png) {
+                                 if (alive.expired()) {
+                                     return;
+                                 }
+                                 browser_.set_thumbnail(path, std::move(png));
+                                 refresh();
+                             });
 }
 
 void FilesScreen::refresh() {
@@ -236,6 +305,8 @@ void FilesScreen::refresh() {
     show(list_box_, list);
     show(details_box_, details);
     show(message_, !list && !details);
+    // Also lets go of the previous file's PNG once its details are closed.
+    refresh_thumbnail();
 
     std::string hint;
     switch (mode) {
@@ -309,6 +380,19 @@ void FilesScreen::refresh_details() {
     lv_obj_set_style_text_color(details_body_, colors.text, 0);
 
     const bool loaded = browser_.details_state() == app::FileBrowser::DetailsState::Loaded;
+    // The frame shows as soon as the metadata names a thumbnail, so the text does not move
+    // when the image arrives.
+    const bool has_thumbnail =
+        loaded && app::pick_thumbnail(browser_.metadata().thumbnails, kThumbnailSize) != nullptr;
+    if (has_thumbnail) {
+        lv_obj_remove_flag(thumbnail_frame_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_color(thumbnail_frame_, colors.background, 0);
+        lv_obj_set_style_border_color(thumbnail_frame_, colors.border, 0);
+    }
+    else {
+        lv_obj_add_flag(thumbnail_frame_, LV_OBJ_FLAG_HIDDEN);
+    }
+
     if (loaded) {
         lv_obj_remove_flag(details_keys_, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_x(details_body_, kDetailValueX);
@@ -322,6 +406,29 @@ void FilesScreen::refresh_details() {
                               ? "Loading details..."
                               : "No details for this file");
     }
+}
+
+void FilesScreen::refresh_thumbnail() {
+    const auto& png = browser_.thumbnail();
+    if (!thumbnail_ || png == png_) {
+        return;
+    }
+    // Detach the old bytes from the image and the cache before they are replaced.
+    lv_image_set_src(thumbnail_, nullptr);
+    lv_image_cache_drop(&png_dsc_);
+    png_ = png;
+    png_dsc_ = {};
+    // The libpng decoder checks only the 8-byte signature and then reads the size from bytes
+    // 16-23, so a truncated file would be read past its end.
+    if (png_.size() < kPngHeaderBytes || png_.compare(0, sizeof(kPngSignature) - 1, kPngSignature) != 0) {
+        return;
+    }
+    // A PNG file in memory: the libpng decoder reads the size from the data.
+    png_dsc_.header.magic = LV_IMAGE_HEADER_MAGIC;
+    png_dsc_.header.cf = LV_COLOR_FORMAT_RAW_ALPHA;
+    png_dsc_.data = reinterpret_cast<const uint8_t*>(png_.data());
+    png_dsc_.data_size = static_cast<uint32_t>(png_.size());
+    lv_image_set_src(thumbnail_, &png_dsc_);
 }
 
 bool FilesScreen::key_handler(uint32_t key, bool long_pressed, void* user_data) {

@@ -10,6 +10,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace app {
 class PrinterCommands;
@@ -38,9 +39,12 @@ private:
     bool handle_key(uint32_t key, bool long_pressed);
     void load_files();
     void load_metadata();
+    void load_thumbnail();
     void refresh();
     void refresh_list();
     void refresh_details();
+    // Shows browser_.thumbnail() when it changed.
+    void refresh_thumbnail();
 
     static bool key_handler(uint32_t key, bool long_pressed, void* user_data);
     static void theme_observer_cb(lv_observer_t* observer, lv_subject_t* subject);
@@ -55,6 +59,11 @@ private:
     std::array<RowWidgets, app::FileBrowser::kVisibleRows> rows_{};
     lv_obj_t* message_{nullptr};
     lv_obj_t* details_box_{nullptr};
+    lv_obj_t* thumbnail_frame_{nullptr};
+    lv_obj_t* thumbnail_{nullptr};
+    // The PNG the image shows; png_dsc_ points into it, so both change together.
+    std::string png_;
+    lv_image_dsc_t png_dsc_{};
     lv_obj_t* details_title_{nullptr};
     lv_obj_t* details_keys_{nullptr};
     lv_obj_t* details_body_{nullptr};
