@@ -20,6 +20,8 @@ namespace {
 
 constexpr int32_t kRowHeight = 17;
 constexpr int32_t kSizeWidth = 58;
+// Content width minus the column and row padding, the size column and a gap.
+constexpr int32_t kNameWidth = view::kScreenWidth - 16 - 10 - kSizeWidth - 6;
 constexpr int32_t kDetailValueX = 64;
 
 const lv_font_t* font_or(const lv_font_t* font, const lv_font_t* fallback) {
@@ -94,8 +96,8 @@ void FilesScreen::build_content(lv_obj_t* content) {
 
         widgets.name = lv_label_create(widgets.row);
         lv_label_set_long_mode(widgets.name, LV_LABEL_LONG_DOT);
-        lv_obj_set_width(widgets.name, LV_PCT(100));
-        lv_obj_set_style_pad_right(widgets.name, kSizeWidth + 4, 0);
+        // One line beside the size column; without a fixed height a long name wraps out of the row.
+        lv_obj_set_size(widgets.name, kNameWidth, lv_font_get_line_height(body_font_));
         lv_obj_set_style_text_font(widgets.name, body_font_, 0);
         lv_obj_align(widgets.name, LV_ALIGN_LEFT_MID, 0, 0);
 
@@ -135,8 +137,9 @@ void FilesScreen::build_details(lv_obj_t* parent) {
     lv_obj_clear_flag(details_box_, LV_OBJ_FLAG_SCROLLABLE);
 
     details_title_ = lv_label_create(details_box_);
-    lv_label_set_long_mode(details_title_, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(details_title_, LV_PCT(100));
+    // Long names often differ only at the end (e.g. the print time), so scroll the whole name.
+    lv_label_set_long_mode(details_title_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_size(details_title_, LV_PCT(100), lv_font_get_line_height(body_font_));
     lv_obj_set_style_text_font(details_title_, body_font_, 0);
 
     auto* table = lv_obj_create(details_box_);
@@ -281,7 +284,15 @@ void FilesScreen::refresh_list() {
             lv_obj_set_style_bg_opa(widgets.row, LV_OPA_TRANSP, 0);
             lv_obj_set_style_border_width(widgets.row, 0, 0);
         }
-        lv_label_set_text(widgets.name, files[index].path.c_str());
+        // Long names often differ only at the end (e.g. the print time): the selected row scrolls
+        // through the whole name, the others are cut with an ellipsis.
+        const auto long_mode = selected ? LV_LABEL_LONG_SCROLL_CIRCULAR : LV_LABEL_LONG_DOT;
+        if (lv_label_get_long_mode(widgets.name) != long_mode) {
+            lv_label_set_long_mode(widgets.name, long_mode);
+        }
+        if (files[index].path != lv_label_get_text(widgets.name)) {
+            lv_label_set_text(widgets.name, files[index].path.c_str());
+        }
         lv_obj_set_style_text_color(widgets.name, colors.text, 0);
         lv_label_set_text(widgets.size, app::format_size(files[index].size).c_str());
         lv_obj_set_style_text_color(widgets.size, colors.text_disabled, 0);
