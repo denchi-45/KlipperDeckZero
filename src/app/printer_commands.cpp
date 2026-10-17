@@ -106,6 +106,48 @@ void PrinterCommands::start_print(const std::string& path) {
     });
 }
 
+void PrinterCommands::pause_print() {
+    if (require_ready()) {
+        LOG_INFO("print pause");
+        session_->print_pause(report("Print paused"));
+    }
+}
+
+void PrinterCommands::resume_print() {
+    if (require_ready()) {
+        LOG_INFO("print resume");
+        session_->print_resume(report("Print resumed"));
+    }
+}
+
+void PrinterCommands::cancel_print() {
+    if (require_ready()) {
+        LOG_INFO("print cancel");
+        session_->print_cancel(report("Print cancelled"));
+    }
+}
+
+void PrinterCommands::emergency_stop() {
+    // Sent whenever Moonraker is reachable: stopping must not wait for a Ready state.
+    if (!session_) {
+        toast_.show("Not connected", view::widgets::ToastTone::Warning);
+        return;
+    }
+    LOG_WARN("emergency stop requested");
+    session_->emergency_stop(report("Emergency stop sent"));
+}
+
+std::function<void(const moonraker::RpcResponse&)> PrinterCommands::report(std::string done_message) {
+    return [this, done_message = std::move(done_message)](const moonraker::RpcResponse& response) {
+        if (response.ok) {
+            toast_.show(done_message, view::widgets::ToastTone::Success);
+            return;
+        }
+        LOG_WARN("{} failed: {}", done_message, response.error.message);
+        toast_.show("Failed: " + first_line(response.error.message), view::widgets::ToastTone::Error, 4000);
+    };
+}
+
 bool PrinterCommands::require_ready() {
     if (printer()) {
         return true;

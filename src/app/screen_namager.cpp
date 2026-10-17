@@ -6,6 +6,7 @@
 
 #include "screen_manager.h"
 
+#include "control_screen.h"
 #include "extruder_screen.h"
 #include "files_screen.h"
 #include "placeholder_screen.h"
@@ -72,6 +73,9 @@ void ScreenManager::show_screen(model::AppPage page) {
     }
     else if (page == model::AppPage::Files) {
         load_screen(std::make_unique<screen::FilesScreen>(view_model_, assets_, commands_));
+    }
+    else if (page == model::AppPage::Control) {
+        load_screen(std::make_unique<screen::ControlScreen>(view_model_, assets_, commands_));
     }
     else if (page == model::AppPage::Settings) {
         load_screen(std::make_unique<screen::SettingsScreen>(view_model_, assets_, settings_));

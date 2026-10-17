@@ -28,9 +28,11 @@ add_executable(kdz_tests
     test_settings_form.cpp
     test_restart_confirm.cpp
     test_temperature_panel.cpp
+    test_control_panel.cpp
     test_extruder_panel.cpp
     test_file_browser.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/control_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/extruder_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/file_browser.cpp"
     "${KDZ_SOURCE_DIR}/src/app/file_list_parser.cpp"
