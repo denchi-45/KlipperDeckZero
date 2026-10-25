@@ -24,7 +24,7 @@ struct HelpRow {
 constexpr HelpRow kHomeRows[] = {
     {"HOLD ESC / 4", "Exit"},
     {"5 / 6", "Temperature / Extruder"},
-    {"7 / 8", "Files / Print control"},
+    {"7 / 8 / 9", "Files / Control / Move"},
     {"S", "Connection settings"},
     {"D", "Light / dark theme"},
     {"R / F  x2", "Restart Klipper / MCU"},
@@ -32,7 +32,7 @@ constexpr HelpRow kHomeRows[] = {
 
 constexpr HelpRow kPageRows[] = {
     {"ESC", "Back to status"},
-    {"4 - 8", "Switch page"},
+    {"4 - 9", "Switch page"},
     {"D", "Light / dark theme"},
 };
 
@@ -41,7 +41,7 @@ constexpr HelpRow kTemperatureRows[] = {
     {"LEFT / RIGHT", "-/+ 5, or pick a preset"},
     {"ENTER", "Type a target / apply"},
     {"ESC", "Cancel edit / back"},
-    {"4 - 8", "Switch page"},
+    {"4 - 9", "Switch page"},
 };
 
 constexpr HelpRow kExtruderRows[] = {
@@ -49,7 +49,7 @@ constexpr HelpRow kExtruderRows[] = {
     {"LEFT / RIGHT", "Change the selection"},
     {"ENTER", "Extrude or retract"},
     {"ESC", "Back to status"},
-    {"4 - 8", "Switch page"},
+    {"4 - 9", "Switch page"},
 };
 
 constexpr HelpRow kFilesRows[] = {
@@ -57,7 +57,7 @@ constexpr HelpRow kFilesRows[] = {
     {"LEFT / RIGHT", "Previous / next page"},
     {"ENTER", "Details, then start print"},
     {"ESC", "Back to list / status"},
-    {"4 - 8", "Switch page"},
+    {"4 - 9", "Switch page"},
 };
 
 constexpr HelpRow kControlRows[] = {
@@ -66,7 +66,15 @@ constexpr HelpRow kControlRows[] = {
     {"ENTER x2", "Cancel the print"},
     {"HOLD ENTER", "Emergency stop"},
     {"ESC", "Back to status"},
-    {"4 - 8", "Switch page"},
+    {"4 - 9", "Switch page"},
+};
+
+constexpr HelpRow kMoveRows[] = {
+    {"UP / DOWN", "Select a row"},
+    {"LEFT / RIGHT", "Change the axis or step"},
+    {"ENTER", "Jog, home, or motors off"},
+    {"ESC", "Back to status"},
+    {"4 - 9", "Switch page"},
 };
 
 constexpr HelpRow kSettingsRows[] = {
@@ -98,6 +106,8 @@ HelpRows rows_for(model::AppPage page) {
             return rows_of(kFilesRows);
         case model::AppPage::Control:
             return rows_of(kControlRows);
+        case model::AppPage::Move:
+            return rows_of(kMoveRows);
         case model::AppPage::Settings:
             return rows_of(kSettingsRows);
         default:

@@ -10,6 +10,13 @@
 #include <cstdio>
 
 namespace app {
+namespace {
+
+constexpr char kPngSignature[] = "\x89PNG\r\n\x1a\n";
+// Signature, IHDR length and type, width and height.
+constexpr std::size_t kPngHeaderBytes = 24;
+
+} // namespace
 
 const GcodeThumbnail* pick_thumbnail(const std::vector<GcodeThumbnail>& thumbnails, int box_size) {
     const GcodeThumbnail* fitting = nullptr;
@@ -32,6 +39,10 @@ const GcodeThumbnail* pick_thumbnail(const std::vector<GcodeThumbnail>& thumbnai
 std::string thumbnail_path(const std::string& gcode_path, const std::string& relative_path) {
     const auto slash = gcode_path.rfind('/');
     return slash == std::string::npos ? relative_path : gcode_path.substr(0, slash + 1) + relative_path;
+}
+
+bool has_png_header(const std::string& data) {
+    return data.size() >= kPngHeaderBytes && data.compare(0, sizeof(kPngSignature) - 1, kPngSignature) == 0;
 }
 
 std::string format_size(std::uint64_t bytes) {

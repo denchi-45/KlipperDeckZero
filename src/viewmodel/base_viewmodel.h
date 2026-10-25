@@ -59,6 +59,8 @@ public:
     lv_subject_t* bed_temperature_subject();
     lv_subject_t* bed_target_subject();
     lv_subject_t* bed_power_subject();           // percent 0..100
+    lv_subject_t* toolhead_position_subject();
+    lv_subject_t* homed_axes_subject();          // "XYZ", empty when none is homed
     lv_subject_t* overlay_visible_subject();
     lv_subject_t* overlay_title_subject();
     lv_subject_t* overlay_detail_subject();
@@ -92,6 +94,8 @@ private:
     reactive::StringSubject<12> bed_temperature_;
     reactive::StringSubject<12> bed_target_;
     reactive::IntSubject bed_power_;
+    reactive::StringSubject<48> toolhead_position_;
+    reactive::StringSubject<8> homed_axes_;
     reactive::BoolSubject overlay_visible_;
     reactive::StringSubject<48> overlay_title_;
     reactive::StringSubject<256> overlay_detail_;

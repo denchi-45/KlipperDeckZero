@@ -7,7 +7,7 @@
 
 namespace platform {
 
-constexpr size_t kNavKeyCount = 5;
+constexpr size_t kNavKeyCount = 6;
 constexpr uint32_t kSpecialKeyBase = 0x200000U;
 constexpr uint32_t kKeyPrintScreen = kSpecialKeyBase | 18U;
 constexpr uint32_t kKeyHelp = kSpecialKeyBase | 19U;

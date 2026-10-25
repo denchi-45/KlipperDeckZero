@@ -40,6 +40,7 @@ constexpr const char* ICON_THERMOMETER        = "\uE5C6";
 constexpr const char* ICON_DROP               = "\uE210";
 constexpr const char* ICON_FILES              = "\uE710";
 constexpr const char* ICON_PLAY_PAUSE         = "\uE8BE";
+constexpr const char* ICON_ARROWS_OUT_CARDINAL = "\uE0A4";
 constexpr const char* ICON_FIRE               = "\uE242";
 constexpr const char* ICON_CLOCK              = "\uE19A";
 constexpr const char* ICON_HOURGLASS          = "\uE2B8";

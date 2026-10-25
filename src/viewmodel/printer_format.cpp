@@ -4,6 +4,7 @@
 
 #include "printer_format.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
@@ -72,6 +73,19 @@ std::string factors(const model::PrinterState& printer) {
     return "Speed " + std::to_string(round_percent(printer.speed_factor)) + "%  Flow " +
            std::to_string(round_percent(printer.extrude_factor)) + "%  Fan " +
            std::to_string(round_percent(printer.fan_speed)) + "%";
+}
+
+std::string toolhead_position(const model::PrinterState& printer) {
+    return "X " + printf_string("%.1f", printer.position[0]) + "  Y " + printf_string("%.1f", printer.position[1]) +
+           "  Z " + printf_string("%.2f", printer.position[2]);
+}
+
+std::string homed_axes(const std::string& homed_axes) {
+    std::string text;
+    for (const char axis : homed_axes) {
+        text += static_cast<char>(std::toupper(static_cast<unsigned char>(axis)));
+    }
+    return text;
 }
 
 std::string job_name(const std::string& filename) {

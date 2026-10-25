@@ -59,6 +59,36 @@ void PrinterCommands::move_extruder(const ExtruderRequest& request) {
     run_script(gcode::move_extruder(request.length_mm, request.speed_mm_s), describe(request));
 }
 
+void PrinterCommands::home_all() {
+    if (require_ready()) {
+        run_script(gcode::home_axes(""), "Homed all axes");
+    }
+}
+
+void PrinterCommands::home_axis(MoveAxis axis) {
+    if (require_ready()) {
+        const std::string letter(1, axis_letter(axis));
+        run_script(gcode::home_axes(letter), "Homed " + letter);
+    }
+}
+
+void PrinterCommands::jog(const JogRequest& request) {
+    if (require_ready()) {
+        run_script(gcode::jog_axis(axis_letter(request.axis), request.distance_mm, request.feed_mm_min),
+                   describe(request));
+    }
+}
+
+void PrinterCommands::motors_off() {
+    if (require_ready()) {
+        run_script(gcode::motors_off(), "Motors off");
+    }
+}
+
+void PrinterCommands::show_warning(const std::string& message) {
+    toast_.show(message, view::widgets::ToastTone::Warning);
+}
+
 void PrinterCommands::list_files(FilesHandler handler) {
     if (!session_) {
         handler({}, "Not connected");

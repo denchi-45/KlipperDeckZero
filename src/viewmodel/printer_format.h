@@ -46,6 +46,10 @@ std::string percent(double fraction);
 std::string layers(int current, int total);
 // "Speed 100%  Flow 95%  Fan 50%"
 std::string factors(const model::PrinterState& printer);
+// "X 120.0  Y 80.5  Z 10.20" from toolhead.position.
+std::string toolhead_position(const model::PrinterState& printer);
+// toolhead.homed_axes in upper case ("XYZ"); empty when no axis is homed.
+std::string homed_axes(const std::string& homed_axes);
 // Basename of a G-code path; "No active print" when empty.
 std::string job_name(const std::string& filename);
 

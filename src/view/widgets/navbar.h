@@ -19,7 +19,7 @@ class AssetManager;
 
 namespace view::widgets {
 
-// Page navigation bound to keys 4..8 (Status, Temperature, Extruder, Files, Control).
+// Page navigation bound to keys 4..9 (Status, Temperature, Extruder, Files, Control, Move).
 class NavBar : public BaseWidgets {
 public:
     NavBar(lv_obj_t* parent, viewmodel::BaseViewModel& view_model, app::AssetManager& assets);

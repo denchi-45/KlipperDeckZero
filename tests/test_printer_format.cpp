@@ -39,6 +39,14 @@ TEST_CASE("format: job name and factors") {
     CHECK_EQ(format::factors(printer), std::string("Speed 100%  Flow 95%  Fan 50%"));
 }
 
+TEST_CASE("format: toolhead position and homed axes") {
+    model::PrinterState printer;
+    printer.position = {120.0, 80.54, 10.2, 3.0};
+    CHECK_EQ(format::toolhead_position(printer), std::string("X 120.0  Y 80.5  Z 10.20"));
+    CHECK_EQ(format::homed_axes("xyz"), std::string("XYZ"));
+    CHECK_EQ(format::homed_axes(""), std::string(""));
+}
+
 TEST_CASE("format: status badge") {
     model::PrinterState printer;
     CHECK_EQ(format::status_badge(SessionState::Connecting, printer).text, std::string("OFFLINE"));

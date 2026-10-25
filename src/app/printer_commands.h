@@ -6,6 +6,7 @@
 
 #include "extruder_panel.h"
 #include "gcode_files.h"
+#include "move_panel.h"
 #include "printer_state.h"
 #include "temperature_panel.h"
 
@@ -55,6 +56,14 @@ public:
     void set_temperatures(const TemperatureRequest& request);
     // Refused while printing or while the nozzle is too cold.
     void move_extruder(const ExtruderRequest& request);
+
+    // Axis moves. The page checks the block rules (move_block()) before calling these.
+    void home_all();
+    void home_axis(MoveAxis axis);
+    void jog(const JogRequest& request);
+    void motors_off();
+    // A warning toast for an operation the page refused, e.g. move_block_reason().
+    void show_warning(const std::string& message);
 
     // G-code files, newest first. Works while Klipper is not ready, as long as Moonraker is up.
     void list_files(FilesHandler handler);

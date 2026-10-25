@@ -30,8 +30,10 @@ add_executable(kdz_tests
     test_temperature_panel.cpp
     test_control_panel.cpp
     test_extruder_panel.cpp
+    test_move_panel.cpp
     test_file_browser.cpp
     test_thumbnail_source.cpp
+    test_status_thumbnail.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
     "${KDZ_SOURCE_DIR}/src/app/control_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/extruder_panel.cpp"
@@ -39,9 +41,11 @@ add_executable(kdz_tests
     "${KDZ_SOURCE_DIR}/src/app/file_list_parser.cpp"
     "${KDZ_SOURCE_DIR}/src/app/gcode.cpp"
     "${KDZ_SOURCE_DIR}/src/app/gcode_files.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/move_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/restart_confirm.cpp"
     "${KDZ_SOURCE_DIR}/src/app/settings_form.cpp"
     "${KDZ_SOURCE_DIR}/src/app/settings_store.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/status_thumbnail.cpp"
     "${KDZ_SOURCE_DIR}/src/app/temperature_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/thumbnail_source.cpp"
     "${KDZ_SOURCE_DIR}/src/viewmodel/printer_format.cpp"

@@ -25,4 +25,17 @@ std::string set_heater_temperature(Heater heater, int celsius);
 // extrusion mode is left as it was.
 std::string move_extruder(int length_mm, int speed_mm_s);
 
+// "G28" when axes is empty (all axes), else "G28 X" / "G28 X Y" for the given axis letters.
+std::string home_axes(const std::string& axes);
+
+// Moves one axis (X, Y or Z) by distance_mm (negative moves towards the minimum) at feed_mm_min.
+// Uses relative positioning inside SAVE/RESTORE_GCODE_STATE, like move_extruder().
+std::string jog_axis(char axis, double distance_mm, int feed_mm_min);
+
+// "M84": disables all stepper motors, so the axes have to be homed again.
+std::string motors_off();
+
+// "0.1", "10", "-50": a distance without trailing zeros, rounded to 0.001 mm.
+std::string format_distance(double mm);
+
 } // namespace app::gcode
