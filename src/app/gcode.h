@@ -20,6 +20,14 @@ const char* heater_object(Heater heater);
 // "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=215"; a target of 0 turns the heater off.
 std::string set_heater_temperature(Heater heater, int celsius);
 
+// Names of the SAVE_GCODE_STATE slots used by move_extruder() and jog_axis().
+extern const char* const kExtruderState; // "kdz_extruder"
+extern const char* const kJogState;      // "kdz_jog"
+
+// "RESTORE_GCODE_STATE NAME=kdz_jog". Sent on its own after a guarded move failed: Klipper
+// stops a script at the first error, so the RESTORE at the end of the move never ran.
+std::string restore_gcode_state(const std::string& name);
+
 // Moves only the filament: length_mm > 0 extrudes, < 0 retracts, at speed_mm_s.
 // Uses relative extrusion inside SAVE/RESTORE_GCODE_STATE so the printer's own
 // extrusion mode is left as it was.

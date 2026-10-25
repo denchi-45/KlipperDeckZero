@@ -52,6 +52,18 @@ TEST_CASE("gcode: jogs keep the printer's positioning mode") {
     CHECK(app::gcode::jog_axis('Y', -50.0, 3000).find("G1 Y-50 F3000\n") != std::string::npos);
 }
 
+TEST_CASE("gcode: a failed jog or filament move restores its state on its own") {
+    CHECK_EQ(app::gcode::restore_gcode_state(app::gcode::kJogState), std::string("RESTORE_GCODE_STATE NAME=kdz_jog"));
+    CHECK_EQ(app::gcode::restore_gcode_state(app::gcode::kExtruderState),
+             std::string("RESTORE_GCODE_STATE NAME=kdz_extruder"));
+    // The scripts end with the same restore when nothing fails.
+    const auto jog = app::gcode::jog_axis('X', 10.0, 3000);
+    CHECK(jog.find("SAVE_GCODE_STATE NAME=kdz_jog\n") == 0);
+    CHECK(jog.substr(jog.rfind('\n') + 1) == app::gcode::restore_gcode_state(app::gcode::kJogState));
+    const auto extrude = app::gcode::move_extruder(10, 5);
+    CHECK(extrude.substr(extrude.rfind('\n') + 1) == app::gcode::restore_gcode_state(app::gcode::kExtruderState));
+}
+
 TEST_CASE("gcode: distances drop trailing zeros") {
     CHECK_EQ(app::gcode::format_distance(0.1), std::string("0.1"));
     CHECK_EQ(app::gcode::format_distance(1.0), std::string("1"));

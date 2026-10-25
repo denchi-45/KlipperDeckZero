@@ -448,7 +448,8 @@ int Application::run() {
         shortcuts.set_session(&printer_service->session());
         commands.set_session(&printer_service->session());
         commands.set_thumbnail_source(&printer_service->thumbnails());
-        printer_service->set_change_listener([&view_model](const moonraker::MoonrakerSession& session) {
+        printer_service->set_change_listener([&view_model, &commands](const moonraker::MoonrakerSession& session) {
+            commands.on_session_changed();
             view_model.update_printer(session);
         });
         printer_service->start();

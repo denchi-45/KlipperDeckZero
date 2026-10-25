@@ -27,6 +27,7 @@ PrinterCommands::PrinterCommands(view::widgets::Toast& toast, viewmodel::BaseVie
 
 void PrinterCommands::set_session(moonraker::MoonrakerSession* session) {
     session_ = session;
+    gcode_state_.reset();
 }
 
 void PrinterCommands::set_thumbnail_source(ThumbnailSource* thumbnails) {
@@ -38,6 +39,18 @@ const model::PrinterState* PrinterCommands::printer() const {
         return nullptr;
     }
     return &session_->printer();
+}
+
+void PrinterCommands::on_session_changed() {
+    if (!session_) {
+        return;
+    }
+    // Leaving these states takes a Klipper restart, which resets the G-code state (and forgets
+    // the saved one). A plain Moonraker reconnect keeps Klipper running, so it keeps the guard.
+    const auto state = session_->session_state();
+    if (state == moonraker::SessionState::WaitingKlippy || state == moonraker::SessionState::KlippyError) {
+        gcode_state_.reset();
+    }
 }
 
 void PrinterCommands::set_temperatures(const TemperatureRequest& request) {
@@ -56,26 +69,29 @@ void PrinterCommands::move_extruder(const ExtruderRequest& request) {
         toast_.show(reason, view::widgets::ToastTone::Warning);
         return;
     }
-    run_script(gcode::move_extruder(request.length_mm, request.speed_mm_s), describe(request));
+    if (require_gcode_state()) {
+        run_guarded_move(gcode::move_extruder(request.length_mm, request.speed_mm_s), gcode::kExtruderState,
+                         describe(request));
+    }
 }
 
 void PrinterCommands::home_all() {
-    if (require_ready()) {
+    if (require_ready() && require_gcode_state()) {
         run_script(gcode::home_axes(""), "Homed all axes");
     }
 }
 
 void PrinterCommands::home_axis(MoveAxis axis) {
-    if (require_ready()) {
+    if (require_ready() && require_gcode_state()) {
         const std::string letter(1, axis_letter(axis));
         run_script(gcode::home_axes(letter), "Homed " + letter);
     }
 }
 
 void PrinterCommands::jog(const JogRequest& request) {
-    if (require_ready()) {
-        run_script(gcode::jog_axis(axis_letter(request.axis), request.distance_mm, request.feed_mm_min),
-                   describe(request));
+    if (require_ready() && require_gcode_state()) {
+        run_guarded_move(gcode::jog_axis(axis_letter(request.axis), request.distance_mm, request.feed_mm_min),
+                         gcode::kJogState, describe(request));
     }
 }
 
@@ -202,6 +218,51 @@ bool PrinterCommands::require_ready() {
     }
     toast_.show("Printer is not ready", view::widgets::ToastTone::Warning);
     return false;
+}
+
+bool PrinterCommands::require_gcode_state() {
+    const char* reason = gcode_state_.block_reason();
+    if (!reason) {
+        return true;
+    }
+    toast_.show(reason, view::widgets::ToastTone::Warning);
+    if (gcode_state_.state() == GcodeStateGuard::State::RestoreFailed) {
+        send_restore(gcode_state_.begin_restore());
+    }
+    return false;
+}
+
+void PrinterCommands::run_guarded_move(const std::string& script, const std::string& state_name,
+                                       const std::string& done_message) {
+    LOG_INFO("gcode: {}", script);
+    const auto ticket = gcode_state_.begin_move(state_name);
+    session_->send_gcode(script, [this, ticket, done_message](const moonraker::RpcResponse& response) {
+        const bool restore = gcode_state_.move_done(ticket, response.ok);
+        if (response.ok) {
+            toast_.show(done_message, view::widgets::ToastTone::Success);
+            return;
+        }
+        LOG_WARN("gcode failed: {}", response.error.message);
+        toast_.show("Failed: " + first_line(response.error.message), view::widgets::ToastTone::Error, 4000);
+        if (restore) {
+            send_restore(ticket);
+        }
+    });
+}
+
+void PrinterCommands::send_restore(GcodeStateGuard::Ticket ticket) {
+    const auto script = gcode::restore_gcode_state(gcode_state_.state_name());
+    LOG_INFO("gcode: {}", script);
+    session_->send_gcode(script, [this, ticket](const moonraker::RpcResponse& response) {
+        gcode_state_.restore_done(ticket, response.ok);
+        if (!response.ok) {
+            LOG_WARN("gcode state restore failed: {}", response.error.message);
+            if (gcode_state_.state() == GcodeStateGuard::State::RestoreFailed) {
+                toast_.show("G-code state not restored: " + first_line(response.error.message),
+                            view::widgets::ToastTone::Warning, 4000);
+            }
+        }
+    });
 }
 
 void PrinterCommands::run_script(const std::string& script, const std::string& done_message) {

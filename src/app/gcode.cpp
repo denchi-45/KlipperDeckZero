@@ -9,6 +9,9 @@
 
 namespace app::gcode {
 
+const char* const kExtruderState = "kdz_extruder";
+const char* const kJogState = "kdz_jog";
+
 const char* heater_object(Heater heater) {
     return heater == Heater::Bed ? "heater_bed" : "extruder";
 }
@@ -21,12 +24,16 @@ std::string set_heater_temperature(Heater heater, int celsius) {
            " TARGET=" + std::to_string(celsius);
 }
 
+std::string restore_gcode_state(const std::string& name) {
+    return "RESTORE_GCODE_STATE NAME=" + name;
+}
+
 std::string move_extruder(int length_mm, int speed_mm_s) {
     const int feed_mm_min = (speed_mm_s > 0 ? speed_mm_s : 1) * 60;
-    return "SAVE_GCODE_STATE NAME=kdz_extruder\n"
+    return std::string("SAVE_GCODE_STATE NAME=") + kExtruderState + "\n"
            "M83\n"
-           "G1 E" + std::to_string(length_mm) + " F" + std::to_string(feed_mm_min) + "\n"
-           "RESTORE_GCODE_STATE NAME=kdz_extruder";
+           "G1 E" + std::to_string(length_mm) + " F" + std::to_string(feed_mm_min) + "\n" +
+           restore_gcode_state(kExtruderState);
 }
 
 std::string home_axes(const std::string& axes) {
@@ -39,11 +46,11 @@ std::string home_axes(const std::string& axes) {
 }
 
 std::string jog_axis(char axis, double distance_mm, int feed_mm_min) {
-    return "SAVE_GCODE_STATE NAME=kdz_jog\n"
+    return std::string("SAVE_GCODE_STATE NAME=") + kJogState + "\n"
            "G91\n"
            "G1 " + std::string(1, axis) + format_distance(distance_mm) + " F" +
-           std::to_string(feed_mm_min > 0 ? feed_mm_min : 1) + "\n"
-           "RESTORE_GCODE_STATE NAME=kdz_jog";
+           std::to_string(feed_mm_min > 0 ? feed_mm_min : 1) + "\n" +
+           restore_gcode_state(kJogState);
 }
 
 std::string motors_off() {

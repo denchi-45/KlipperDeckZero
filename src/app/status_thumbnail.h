@@ -6,6 +6,7 @@
 
 #include "printer_state.h"
 
+#include <cstdint>
 #include <string>
 
 namespace app {
@@ -26,16 +27,20 @@ public:
 
     // The printing file whose thumbnail is wanted; empty when none is.
     const std::string& file() const;
-    // True while a response for path is still wanted.
-    bool wants(const std::string& path) const;
-    // The PNG of the file at path (empty when it could not be read). Ignored unless path is
-    // still file(), so a late response for an earlier print shows nothing.
-    void set_thumbnail(const std::string& path, std::string png);
+    // Changes whenever file() does, including when the same file is printed again after the
+    // print ended. A fetch keeps the generation it started in.
+    std::uint32_t generation() const;
+    // True while a response of a fetch started in generation is still wanted.
+    bool wants(std::uint32_t generation) const;
+    // The PNG fetched in generation (empty when it could not be read). Ignored unless that is
+    // still generation(), so a late response for an earlier print shows nothing.
+    void set_thumbnail(std::uint32_t generation, std::string png);
     // PNG bytes of file()'s thumbnail; empty until it is loaded.
     const std::string& thumbnail() const;
 
 private:
     std::string file_;
+    std::uint32_t generation_{0};
     std::string thumbnail_;
 };
 

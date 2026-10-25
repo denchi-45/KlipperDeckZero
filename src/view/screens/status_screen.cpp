@@ -320,9 +320,10 @@ void StatusScreen::update_thumbnail() {
 void StatusScreen::load_thumbnail() {
     std::weak_ptr<bool> alive = alive_;
     const std::string path = thumbnail_state_.file();
-    commands_.file_metadata(path, [this, alive, path](const app::GcodeMetadata* metadata) {
-        // The print may have ended or moved on to another file by now.
-        if (alive.expired() || !metadata || !thumbnail_state_.wants(path)) {
+    const auto generation = thumbnail_state_.generation();
+    commands_.file_metadata(path, [this, alive, path, generation](const app::GcodeMetadata* metadata) {
+        // The print may have ended, moved on to another file or restarted the same one by now.
+        if (alive.expired() || !metadata || !thumbnail_state_.wants(generation)) {
             return;
         }
         const auto* thumbnail = app::pick_thumbnail(metadata->thumbnails, kThumbnailSize);
@@ -330,11 +331,11 @@ void StatusScreen::load_thumbnail() {
             return;
         }
         commands_.file_thumbnail(app::thumbnail_path(path, thumbnail->relative_path),
-                                 [this, alive, path](std::string png) {
-                                     if (alive.expired()) {
+                                 [this, alive, generation](std::string png) {
+                                     if (alive.expired() || !thumbnail_state_.wants(generation)) {
                                          return;
                                      }
-                                     thumbnail_state_.set_thumbnail(path, std::move(png));
+                                     thumbnail_state_.set_thumbnail(generation, std::move(png));
                                      refresh_thumbnail();
                                  });
     });

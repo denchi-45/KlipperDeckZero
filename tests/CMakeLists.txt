@@ -31,6 +31,7 @@ add_executable(kdz_tests
     test_control_panel.cpp
     test_extruder_panel.cpp
     test_move_panel.cpp
+    test_gcode_state_guard.cpp
     test_file_browser.cpp
     test_thumbnail_source.cpp
     test_status_thumbnail.cpp
@@ -41,6 +42,7 @@ add_executable(kdz_tests
     "${KDZ_SOURCE_DIR}/src/app/file_list_parser.cpp"
     "${KDZ_SOURCE_DIR}/src/app/gcode.cpp"
     "${KDZ_SOURCE_DIR}/src/app/gcode_files.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/gcode_state_guard.cpp"
     "${KDZ_SOURCE_DIR}/src/app/move_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/restart_confirm.cpp"
     "${KDZ_SOURCE_DIR}/src/app/settings_form.cpp"

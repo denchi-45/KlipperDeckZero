@@ -1,0 +1,68 @@
+/*
+ * SPDX-License-Identifier: MIT
+ */
+
+#include "gcode_state_guard.h"
+
+namespace app {
+
+GcodeStateGuard::State GcodeStateGuard::state() const {
+    return state_;
+}
+
+const char* GcodeStateGuard::block_reason() const {
+    switch (state_) {
+        case State::Moving:
+            return "Wait for the last move";
+        case State::Restoring:
+            return "Restoring G-code state";
+        case State::RestoreFailed:
+            return "G-code state not restored, retrying";
+        case State::Idle:
+            break;
+    }
+    return nullptr;
+}
+
+const std::string& GcodeStateGuard::state_name() const {
+    return state_name_;
+}
+
+GcodeStateGuard::Ticket GcodeStateGuard::begin_move(const std::string& state_name) {
+    state_ = State::Moving;
+    state_name_ = state_name;
+    return ++ticket_;
+}
+
+bool GcodeStateGuard::move_done(Ticket ticket, bool ok) {
+    if (ticket != ticket_ || state_ != State::Moving) {
+        return false;
+    }
+    if (ok) {
+        // The RESTORE at the end of the script ran.
+        state_ = State::Idle;
+        return false;
+    }
+    state_ = State::Restoring;
+    return true;
+}
+
+GcodeStateGuard::Ticket GcodeStateGuard::begin_restore() {
+    state_ = State::Restoring;
+    return ++ticket_;
+}
+
+void GcodeStateGuard::restore_done(Ticket ticket, bool ok) {
+    if (ticket != ticket_ || state_ != State::Restoring) {
+        return;
+    }
+    state_ = ok ? State::Idle : State::RestoreFailed;
+}
+
+void GcodeStateGuard::reset() {
+    state_ = State::Idle;
+    state_name_.clear();
+    ++ticket_;
+}
+
+} // namespace app

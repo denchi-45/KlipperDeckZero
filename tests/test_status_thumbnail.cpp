@@ -25,11 +25,13 @@ TEST_CASE("status thumbnail: fetched once when a print starts") {
     CHECK(thumbnail.update(PrintState::Standby, "") == Action::None);
     CHECK(thumbnail.update(PrintState::Printing, "benchy.gcode") == Action::Fetch);
     CHECK_EQ(thumbnail.file(), std::string("benchy.gcode"));
-    CHECK(thumbnail.wants("benchy.gcode"));
+    const auto generation = thumbnail.generation();
+    CHECK(thumbnail.wants(generation));
     // Later updates of the same print fetch nothing, paused or not.
     CHECK(thumbnail.update(PrintState::Printing, "benchy.gcode") == Action::None);
     CHECK(thumbnail.update(PrintState::Paused, "benchy.gcode") == Action::None);
     CHECK(thumbnail.update(PrintState::Printing, "benchy.gcode") == Action::None);
+    CHECK(thumbnail.wants(generation));
 }
 
 TEST_CASE("status thumbnail: nothing is wanted while idle or without a file name") {
@@ -38,20 +40,21 @@ TEST_CASE("status thumbnail: nothing is wanted while idle or without a file name
     CHECK(thumbnail.update(PrintState::Complete, "benchy.gcode") == Action::None);
     CHECK(thumbnail.update(PrintState::Unknown, "benchy.gcode") == Action::None);
     CHECK(thumbnail.file().empty());
-    CHECK(!thumbnail.wants(""));
-    thumbnail.set_thumbnail("benchy.gcode", kPngStart);
+    CHECK(!thumbnail.wants(thumbnail.generation()));
+    thumbnail.set_thumbnail(thumbnail.generation(), kPngStart);
     CHECK(thumbnail.thumbnail().empty());
 }
 
 TEST_CASE("status thumbnail: cleared when the print ends") {
     StatusThumbnail thumbnail;
     thumbnail.update(PrintState::Printing, "benchy.gcode");
-    thumbnail.set_thumbnail("benchy.gcode", kPngStart);
+    const auto generation = thumbnail.generation();
+    thumbnail.set_thumbnail(generation, kPngStart);
     CHECK_EQ(thumbnail.thumbnail(), kPngStart);
 
     CHECK(thumbnail.update(PrintState::Complete, "benchy.gcode") == Action::Clear);
     CHECK(thumbnail.thumbnail().empty());
-    CHECK(!thumbnail.wants("benchy.gcode"));
+    CHECK(!thumbnail.wants(generation));
     CHECK(thumbnail.update(PrintState::Standby, "") == Action::None);
 
     // Printing the same file again fetches it again.
@@ -61,16 +64,18 @@ TEST_CASE("status thumbnail: cleared when the print ends") {
 TEST_CASE("status thumbnail: a new file drops the old image and ignores late responses") {
     StatusThumbnail thumbnail;
     thumbnail.update(PrintState::Printing, "a.gcode");
-    thumbnail.set_thumbnail("a.gcode", kPngStart);
+    const auto a = thumbnail.generation();
+    thumbnail.set_thumbnail(a, kPngStart);
 
     CHECK(thumbnail.update(PrintState::Printing, "parts/b.gcode") == Action::Fetch);
+    const auto b = thumbnail.generation();
     CHECK(thumbnail.thumbnail().empty());
-    CHECK(!thumbnail.wants("a.gcode"));
+    CHECK(!thumbnail.wants(a));
 
     // The response for a.gcode arrives after the switch.
-    thumbnail.set_thumbnail("a.gcode", kPngStart);
+    thumbnail.set_thumbnail(a, kPngStart);
     CHECK(thumbnail.thumbnail().empty());
-    thumbnail.set_thumbnail("parts/b.gcode", kPngStart + "rest");
+    thumbnail.set_thumbnail(b, kPngStart + "rest");
     CHECK_EQ(thumbnail.thumbnail(), kPngStart + "rest");
 }
 
@@ -80,6 +85,28 @@ TEST_CASE("status thumbnail: losing the printer clears, reconnecting fetches aga
     // The status page passes Unknown while the printer is not ready.
     CHECK(thumbnail.update(PrintState::Unknown, "") == Action::Clear);
     CHECK(thumbnail.update(PrintState::Paused, "a.gcode") == Action::Fetch);
+}
+
+TEST_CASE("status thumbnail: restarting the same file ignores the previous print's responses") {
+    StatusThumbnail thumbnail;
+    thumbnail.update(PrintState::Printing, "benchy.gcode");
+    const auto first = thumbnail.generation();
+
+    // The print is cancelled and started again before the first fetch answered.
+    CHECK(thumbnail.update(PrintState::Cancelled, "benchy.gcode") == Action::Clear);
+    CHECK(thumbnail.update(PrintState::Printing, "benchy.gcode") == Action::Fetch);
+    const auto second = thumbnail.generation();
+    CHECK(second != first);
+    CHECK_EQ(thumbnail.file(), std::string("benchy.gcode"));
+
+    // Late metadata or image responses of the first print are no longer wanted.
+    CHECK(!thumbnail.wants(first));
+    thumbnail.set_thumbnail(first, kPngStart);
+    CHECK(thumbnail.thumbnail().empty());
+
+    CHECK(thumbnail.wants(second));
+    thumbnail.set_thumbnail(second, kPngStart + "new");
+    CHECK_EQ(thumbnail.thumbnail(), kPngStart + "new");
 }
 
 TEST_CASE("png header: signature and image size are required") {
