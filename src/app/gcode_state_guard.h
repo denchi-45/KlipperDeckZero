@@ -15,7 +15,8 @@ namespace app {
 // A guarded move (jog_axis(), move_extruder()) ends with RESTORE_GCODE_STATE, but Klipper stops
 // a script at its first error, so a failed G1 leaves G91 / M83 behind. The guard then asks for
 // the restore as a separate script and refuses movement until it succeeded. A failed restore
-// keeps movement refused; the next movement attempt retries it.
+// keeps movement refused; the next movement attempt retries it. A restore that finds no saved
+// state (see nothing_to_restore()) counts as done.
 class GcodeStateGuard {
 public:
     enum class State {
@@ -42,6 +43,9 @@ public:
     // Retries the restore after RestoreFailed. Only valid in that state.
     Ticket begin_restore();
     void restore_done(Ticket ticket, bool ok);
+    // True when a failed restore's error says Klipper holds no saved state under state_name()
+    // (the move never ran SAVE_GCODE_STATE, or Klipper restarted): nothing is left to restore.
+    bool nothing_to_restore(const std::string& error_message) const;
 
     // Klipper restarted (its G-code state is back to the defaults) or the session was replaced:
     // forgets everything and ignores responses that are still on the way.

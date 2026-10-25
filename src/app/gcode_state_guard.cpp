@@ -4,6 +4,8 @@
 
 #include "gcode_state_guard.h"
 
+#include <cctype>
+
 namespace app {
 
 GcodeStateGuard::State GcodeStateGuard::state() const {
@@ -57,6 +59,25 @@ void GcodeStateGuard::restore_done(Ticket ticket, bool ok) {
         return;
     }
     state_ = ok ? State::Idle : State::RestoreFailed;
+}
+
+bool GcodeStateGuard::nothing_to_restore(const std::string& error_message) const {
+    if (state_name_.empty()) {
+        return false;
+    }
+    // Klipper's RESTORE_GCODE_STATE: "Unknown g-code state: <name>". The name has to end there,
+    // so an error for "kdz_jog2" is not taken for "kdz_jog".
+    const std::string expected = "Unknown g-code state: " + state_name_;
+    const auto pos = error_message.find(expected);
+    if (pos == std::string::npos) {
+        return false;
+    }
+    const auto end = pos + expected.size();
+    if (end == error_message.size()) {
+        return true;
+    }
+    const char next = error_message[end];
+    return !std::isalnum(static_cast<unsigned char>(next)) && next != '_';
 }
 
 void GcodeStateGuard::reset() {

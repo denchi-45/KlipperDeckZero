@@ -89,3 +89,45 @@ TEST_CASE("gcode state guard: responses from before a reset are ignored") {
     CHECK(!guard.move_done(next, true));
     CHECK(guard.state() == State::Idle);
 }
+
+TEST_CASE("gcode state guard: an unknown-state error for our name means nothing to restore") {
+    GcodeStateGuard guard;
+    const auto ticket = guard.begin_move("kdz_jog");
+    // The move never reached Klipper, and neither did the first restore.
+    CHECK(guard.move_done(ticket, false));
+    CHECK(!guard.nothing_to_restore("not connected: printer.gcode.script"));
+    guard.restore_done(ticket, false);
+    CHECK(guard.state() == State::RestoreFailed);
+
+    // After the reconnect the retry finds no saved state under kdz_jog.
+    const auto retry = guard.begin_restore();
+    const std::string error = "Unknown g-code state: kdz_jog";
+    CHECK(guard.nothing_to_restore(error));
+    guard.restore_done(retry, guard.nothing_to_restore(error));
+    CHECK(guard.state() == State::Idle);
+    CHECK(guard.block_reason() == nullptr);
+}
+
+TEST_CASE("gcode state guard: an unknown-state error for another name keeps movement blocked") {
+    GcodeStateGuard guard;
+    const auto ticket = guard.begin_move("kdz_jog");
+    CHECK(guard.move_done(ticket, false));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_extruder"));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_jog2"));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: default"));
+    guard.restore_done(ticket, guard.nothing_to_restore("Unknown g-code state: kdz_extruder"));
+    CHECK(guard.state() == State::RestoreFailed);
+}
+
+TEST_CASE("gcode state guard: other restore errors keep RestoreFailed") {
+    GcodeStateGuard guard;
+    const auto ticket = guard.begin_move("kdz_extruder");
+    CHECK(guard.move_done(ticket, false));
+    for (const std::string error : {"request timed out: printer.gcode.script", "send failed: printer.gcode.script",
+                                    "Must home axis first", ""}) {
+        CHECK(!guard.nothing_to_restore(error));
+    }
+    guard.restore_done(ticket, guard.nothing_to_restore("Must home axis first"));
+    CHECK(guard.state() == State::RestoreFailed);
+    CHECK(guard.block_reason() != nullptr);
+}

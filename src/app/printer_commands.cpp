@@ -254,8 +254,14 @@ void PrinterCommands::send_restore(GcodeStateGuard::Ticket ticket) {
     const auto script = gcode::restore_gcode_state(gcode_state_.state_name());
     LOG_INFO("gcode: {}", script);
     session_->send_gcode(script, [this, ticket](const moonraker::RpcResponse& response) {
-        gcode_state_.restore_done(ticket, response.ok);
-        if (!response.ok) {
+        // Without a saved state the printer is not in the move's relative mode: done as well.
+        // Timeouts and disconnects stay failures, the move may have run.
+        const bool nothing_saved = !response.ok && gcode_state_.nothing_to_restore(response.error.message);
+        gcode_state_.restore_done(ticket, response.ok || nothing_saved);
+        if (nothing_saved) {
+            LOG_INFO("gcode state restore: nothing saved ({})", response.error.message);
+        }
+        else if (!response.ok) {
             LOG_WARN("gcode state restore failed: {}", response.error.message);
             if (gcode_state_.state() == GcodeStateGuard::State::RestoreFailed) {
                 toast_.show("G-code state not restored: " + first_line(response.error.message),
