@@ -81,6 +81,21 @@ TEST_CASE("files: the smallest thumbnail that fills the box is picked, else the 
     CHECK(app::pick_thumbnail({{0, 0, "broken.png"}}, 76) == nullptr);
 }
 
+TEST_CASE("files: thumbnails outside the file's directory are never picked") {
+    const std::vector<app::GcodeThumbnail> thumbnails = {{300, 300, "../../etc/a-300.png"},
+                                                         {200, 200, ".thumbs/../../a-200.png"},
+                                                         {160, 160, ".."},
+                                                         {128, 128, "/etc/a-128.png"},
+                                                         {120, 120, ""},
+                                                         {96, 96, ".thumbs/a..v2-96.png"},
+                                                         {32, 32, ".thumbs/a-32.png"}};
+    CHECK(app::pick_thumbnail(thumbnails, 76)->relative_path == ".thumbs/a..v2-96.png");
+    CHECK(app::pick_thumbnail(thumbnails, 400)->relative_path == ".thumbs/a..v2-96.png");
+    CHECK(app::pick_thumbnail({{300, 300, "../a.png"}, {32, 32, ".thumbs/a-32.png"}}, 76)->relative_path ==
+          ".thumbs/a-32.png");
+    CHECK(app::pick_thumbnail({{300, 300, "../a.png"}, {128, 128, "/a.png"}, {96, 96, ""}}, 76) == nullptr);
+}
+
 TEST_CASE("files: thumbnail paths are relative to the file's directory") {
     CHECK(app::thumbnail_path("a.gcode", ".thumbs/a.png") == ".thumbs/a.png");
     CHECK(app::thumbnail_path("parts/v2/a.gcode", ".thumbs/a.png") == "parts/v2/.thumbs/a.png");

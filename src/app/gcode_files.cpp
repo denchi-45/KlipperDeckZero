@@ -16,13 +16,30 @@ constexpr char kPngSignature[] = "\x89PNG\r\n\x1a\n";
 // Signature, IHDR length and type, width and height.
 constexpr std::size_t kPngHeaderBytes = 24;
 
+// The path comes from file metadata and is read from disk over a Unix socket connection,
+// so it must stay below the G-code file's directory.
+bool is_safe_relative_path(const std::string& path) {
+    if (path.empty() || path.front() == '/') {
+        return false;
+    }
+    std::size_t start = 0;
+    while (start <= path.size()) {
+        const auto slash = std::min(path.find('/', start), path.size());
+        if (path.compare(start, slash - start, "..") == 0) {
+            return false;
+        }
+        start = slash + 1;
+    }
+    return true;
+}
+
 } // namespace
 
 const GcodeThumbnail* pick_thumbnail(const std::vector<GcodeThumbnail>& thumbnails, int box_size) {
     const GcodeThumbnail* fitting = nullptr;
     const GcodeThumbnail* largest = nullptr;
     for (const auto& thumbnail : thumbnails) {
-        if (thumbnail.width <= 0 || thumbnail.height <= 0 || thumbnail.relative_path.empty()) {
+        if (thumbnail.width <= 0 || thumbnail.height <= 0 || !is_safe_relative_path(thumbnail.relative_path)) {
             continue;
         }
         const int side = std::min(thumbnail.width, thumbnail.height);
