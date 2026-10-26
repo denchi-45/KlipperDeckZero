@@ -8,6 +8,7 @@
 
 #include "subjects.h"
 #include "base_model.h"
+#include "printer_format.h"
 
 #include "lvgl.h"
 
@@ -44,6 +45,7 @@ public:
     lv_subject_t* printer_badge_text_subject();
     lv_subject_t* printer_badge_tone_subject();  // format::Tone
     lv_subject_t* printer_job_subject();
+    lv_subject_t* printer_file_revision_subject(); // bumps when the full file path changes
     lv_subject_t* printer_progress_subject();    // permille 0..1000
     lv_subject_t* printer_progress_text_subject();
     lv_subject_t* printer_elapsed_subject();
@@ -59,6 +61,8 @@ public:
     lv_subject_t* bed_temperature_subject();
     lv_subject_t* bed_target_subject();
     lv_subject_t* bed_power_subject();           // percent 0..100
+    lv_subject_t* toolhead_position_subject();
+    lv_subject_t* homed_axes_subject();          // "XYZ", empty when none is homed
     lv_subject_t* overlay_visible_subject();
     lv_subject_t* overlay_title_subject();
     lv_subject_t* overlay_detail_subject();
@@ -77,6 +81,8 @@ private:
     reactive::StringSubject<16> printer_badge_text_;
     reactive::IntSubject printer_badge_tone_;
     reactive::StringSubject<96> printer_job_;
+    format::FileRevision printer_file_;
+    reactive::IntSubject printer_file_revision_;
     reactive::IntSubject printer_progress_;
     reactive::StringSubject<8> printer_progress_text_;
     reactive::StringSubject<16> printer_elapsed_;
@@ -92,6 +98,8 @@ private:
     reactive::StringSubject<12> bed_temperature_;
     reactive::StringSubject<12> bed_target_;
     reactive::IntSubject bed_power_;
+    reactive::StringSubject<48> toolhead_position_;
+    reactive::StringSubject<8> homed_axes_;
     reactive::BoolSubject overlay_visible_;
     reactive::StringSubject<48> overlay_title_;
     reactive::StringSubject<256> overlay_detail_;

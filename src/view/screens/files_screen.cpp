@@ -29,9 +29,6 @@ constexpr int32_t kDetailValueX = 52;
 constexpr int32_t kDetailLineSpace = -2;
 // Square left of the detail lines, as tall as the four of them.
 constexpr int32_t kThumbnailSize = 64;
-constexpr char kPngSignature[] = "\x89PNG\r\n\x1a\n";
-// Signature, IHDR length and type, width and height.
-constexpr std::size_t kPngHeaderBytes = 24;
 
 const lv_font_t* font_or(const lv_font_t* font, const lv_font_t* fallback) {
     return font ? font : fallback;
@@ -418,9 +415,8 @@ void FilesScreen::refresh_thumbnail() {
     lv_image_cache_drop(&png_dsc_);
     png_ = png;
     png_dsc_ = {};
-    // The libpng decoder checks only the 8-byte signature and then reads the size from bytes
-    // 16-23, so a truncated file would be read past its end.
-    if (png_.size() < kPngHeaderBytes || png_.compare(0, sizeof(kPngSignature) - 1, kPngSignature) != 0) {
+    // A truncated file would make the libpng decoder read past its end.
+    if (!app::has_png_header(png_)) {
         return;
     }
     // A PNG file in memory: the libpng decoder reads the size from the data.

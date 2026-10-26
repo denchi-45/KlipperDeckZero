@@ -60,6 +60,7 @@ BaseViewModel::BaseViewModel()
       printer_badge_text_("OFFLINE"),
       printer_badge_tone_(tone_to_int(format::Tone::Neutral)),
       printer_job_(format::job_name({}).c_str()),
+      printer_file_revision_(0),
       printer_progress_(0),
       printer_progress_text_("0%"),
       printer_elapsed_("--:--"),
@@ -75,6 +76,8 @@ BaseViewModel::BaseViewModel()
       bed_temperature_("--"),
       bed_target_("off"),
       bed_power_(0),
+      toolhead_position_("X --  Y --  Z --"),
+      homed_axes_(""),
       overlay_visible_(true),
       overlay_title_("Connecting to Moonraker..."),
       overlay_detail_(""),
@@ -138,6 +141,10 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
     const bool has_job = ready && printer.print_state != model::PrintState::Standby &&
                          printer.print_state != model::PrintState::Unknown;
     set_if_changed(printer_job_, format::job_name(has_job ? printer.filename : std::string()));
+    // job_name() drops the directory, so track the full path separately for the thumbnail.
+    if (printer_file_.update(printer.filename)) {
+        printer_file_revision_.set(printer_file_.revision());
+    }
 
     // Moonraker can report progress outside [0, 1]; keep the subject within its 0-1000 contract.
     double progress = has_job ? printer.progress() : 0.0;
@@ -164,6 +171,8 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
     set_if_changed(bed_temperature_, ready ? format::temperature(printer.heater_bed.temperature) : "--");
     set_if_changed(bed_target_, ready ? format::target(printer.heater_bed.target) : "off");
     set_if_changed(bed_power_, ready ? to_percent(printer.heater_bed.power) : 0);
+    set_if_changed(toolhead_position_, ready ? format::toolhead_position(printer) : "X --  Y --  Z --");
+    set_if_changed(homed_axes_, ready ? format::homed_axes(printer.homed_axes) : std::string());
 
     const auto overlay =
         format::connection_overlay(state, printer, session.endpoint(), session.last_error());
@@ -184,6 +193,10 @@ lv_subject_t* BaseViewModel::printer_badge_tone_subject() {
 
 lv_subject_t* BaseViewModel::printer_job_subject() {
     return printer_job_.native();
+}
+
+lv_subject_t* BaseViewModel::printer_file_revision_subject() {
+    return printer_file_revision_.native();
 }
 
 lv_subject_t* BaseViewModel::printer_progress_subject() {
@@ -244,6 +257,14 @@ lv_subject_t* BaseViewModel::bed_target_subject() {
 
 lv_subject_t* BaseViewModel::bed_power_subject() {
     return bed_power_.native();
+}
+
+lv_subject_t* BaseViewModel::toolhead_position_subject() {
+    return toolhead_position_.native();
+}
+
+lv_subject_t* BaseViewModel::homed_axes_subject() {
+    return homed_axes_.native();
 }
 
 lv_subject_t* BaseViewModel::overlay_visible_subject() {

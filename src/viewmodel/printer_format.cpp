@@ -4,6 +4,7 @@
 
 #include "printer_format.h"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 
@@ -74,12 +75,34 @@ std::string factors(const model::PrinterState& printer) {
            std::to_string(round_percent(printer.fan_speed)) + "%";
 }
 
+std::string toolhead_position(const model::PrinterState& printer) {
+    return "X " + printf_string("%.1f", printer.position[0]) + "  Y " + printf_string("%.1f", printer.position[1]) +
+           "  Z " + printf_string("%.2f", printer.position[2]);
+}
+
+std::string homed_axes(const std::string& homed_axes) {
+    std::string text;
+    for (const char axis : homed_axes) {
+        text += static_cast<char>(std::toupper(static_cast<unsigned char>(axis)));
+    }
+    return text;
+}
+
 std::string job_name(const std::string& filename) {
     if (filename.empty()) {
         return "No active print";
     }
     const auto slash = filename.find_last_of('/');
     return slash == std::string::npos ? filename : filename.substr(slash + 1);
+}
+
+bool FileRevision::update(const std::string& filename) {
+    if (filename == filename_) {
+        return false;
+    }
+    filename_ = filename;
+    ++revision_;
+    return true;
 }
 
 StatusBadge status_badge(moonraker::SessionState session, const model::PrinterState& printer) {

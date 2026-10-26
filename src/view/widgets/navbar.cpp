@@ -17,16 +17,17 @@
 namespace view::widgets {
 namespace {
 
-// Same order as model::AppPage and the physical keys 4..8.
+// Same order as model::AppPage and the physical keys 4..9.
 constexpr std::array<const char*, model::kNavPageCount> kPageIcons = {
     ICON_GAUGE,
     ICON_THERMOMETER,
     ICON_DROP,
     ICON_FILES,
     ICON_PLAY_PAUSE,
+    ICON_ARROWS_OUT_CARDINAL,
 };
 
-constexpr std::array<int32_t, model::kNavPageCount> kNavButtonXOffsets = {30, 17, 2, -15, -30};
+constexpr std::array<int32_t, model::kNavPageCount> kNavButtonXOffsets = {30, 18, 6, -6, -18, -30};
 
 } // namespace
 

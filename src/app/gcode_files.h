@@ -41,6 +41,11 @@ const GcodeThumbnail* pick_thumbnail(const std::vector<GcodeThumbnail>& thumbnai
 // Path of a thumbnail relative to the gcodes root: "parts/a.gcode" + ".thumbs/a.png"
 // gives "parts/.thumbs/a.png".
 std::string thumbnail_path(const std::string& gcode_path, const std::string& relative_path);
+// True when data is a PNG file the libpng decoder can open: the signature and IHDR width and
+// height are there, libpng reads the header up to the image data, and neither side exceeds
+// 1024 pixels. The decoder checks only the signature before reading the size (a shorter file
+// would be read past its end) and finds a header libpng refuses only when drawing.
+bool has_png_header(const std::string& data);
 
 // "512 B", "850 KB", "12.3 MB"
 std::string format_size(std::uint64_t bytes);

@@ -26,12 +26,12 @@ model::PrinterState hot_idle_printer() {
 } // namespace
 
 TEST_CASE("gcode: filament moves keep the printer's extrusion mode") {
-    CHECK(app::gcode::move_extruder(10, 5) ==
-          "SAVE_GCODE_STATE NAME=kdz_extruder\n"
+    CHECK(app::gcode::move_extruder(10, 5, "kdz_extruder_3") ==
+          "SAVE_GCODE_STATE NAME=kdz_extruder_3\n"
           "M83\n"
           "G1 E10 F300\n"
-          "RESTORE_GCODE_STATE NAME=kdz_extruder");
-    CHECK(app::gcode::move_extruder(-25, 10).find("G1 E-25 F600\n") != std::string::npos);
+          "RESTORE_GCODE_STATE NAME=kdz_extruder_3");
+    CHECK(app::gcode::move_extruder(-25, 10, app::gcode::kExtruderState).find("G1 E-25 F600\n") != std::string::npos);
 }
 
 TEST_CASE("extruder: defaults to extruding 10 mm at 5 mm/s") {

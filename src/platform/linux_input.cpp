@@ -83,6 +83,8 @@ size_t nav_key_to_index(uint32_t key) {
             return 3;
         case '8':
             return 4;
+        case '9':
+            return 5;
         default:
             return kNavKeyCount;
     }

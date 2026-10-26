@@ -10,7 +10,7 @@
 
 namespace model {
 
-// One page per navigation key (4..8), then pages reached by other shortcuts. Status is the home
+// One page per navigation key (4..9), then pages reached by other shortcuts. Status is the home
 // page.
 enum class AppPage {
     Status      = 0,
@@ -18,11 +18,12 @@ enum class AppPage {
     Extruder    = 2,
     Files       = 3,
     Control     = 4,
-    Settings    = 5, // S key; not in the nav bar
+    Move        = 5,
+    Settings    = 6, // S key; not in the nav bar
 };
 
 // Pages shown in the nav bar: AppPage values below this.
-constexpr std::size_t kNavPageCount = 5;
+constexpr std::size_t kNavPageCount = 6;
 
 const char* page_title(AppPage page);
 
