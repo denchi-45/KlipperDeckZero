@@ -39,6 +39,25 @@ TEST_CASE("format: job name and factors") {
     CHECK_EQ(format::factors(printer), std::string("Speed 100%  Flow 95%  Fan 50%"));
 }
 
+TEST_CASE("format: file revision follows the full path") {
+    format::FileRevision file;
+    CHECK_EQ(file.revision(), 0);
+    CHECK(!file.update(""));
+    CHECK_EQ(file.revision(), 0);
+
+    CHECK(file.update("parts/a/benchy.gcode"));
+    CHECK_EQ(file.revision(), 1);
+    CHECK(!file.update("parts/a/benchy.gcode"));
+    CHECK_EQ(file.revision(), 1);
+
+    // Same job name in another directory is still a different file.
+    CHECK_EQ(format::job_name("parts/b/benchy.gcode"), format::job_name("parts/a/benchy.gcode"));
+    CHECK(file.update("parts/b/benchy.gcode"));
+    CHECK_EQ(file.revision(), 2);
+    CHECK(!file.update("parts/b/benchy.gcode"));
+    CHECK_EQ(file.revision(), 2);
+}
+
 TEST_CASE("format: toolhead position and homed axes") {
     model::PrinterState printer;
     printer.position = {120.0, 80.54, 10.2, 3.0};

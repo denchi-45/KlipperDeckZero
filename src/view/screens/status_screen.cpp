@@ -201,9 +201,10 @@ void StatusScreen::build_content(lv_obj_t* content) {
 
     build_overlay(content);
 
-    // Follow the print: the badge changes with the print state, the job with the file.
+    // Follow the print: the badge changes with the print state, the file revision with the
+    // full path (the job name alone misses same-named files in other directories).
     reactive::observe_obj(column, vm.printer_badge_text_subject(), print_observer_cb, this);
-    reactive::observe_obj(column, vm.printer_job_subject(), print_observer_cb, this);
+    reactive::observe_obj(column, vm.printer_file_revision_subject(), print_observer_cb, this);
     update_thumbnail();
 }
 

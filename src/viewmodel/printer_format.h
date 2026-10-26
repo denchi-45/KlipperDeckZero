@@ -7,6 +7,7 @@
 #include "moonraker_session.h"
 #include "printer_state.h"
 
+#include <cstdint>
 #include <string>
 
 // Text formatting for printer data shown on screen. Free of LVGL so it can be unit tested.
@@ -52,6 +53,19 @@ std::string toolhead_position(const model::PrinterState& printer);
 std::string homed_axes(const std::string& homed_axes);
 // Basename of a G-code path; "No active print" when empty.
 std::string job_name(const std::string& filename);
+
+// Counts changes of the full G-code path, so a switch between same-named files in
+// different directories is noticed even though job_name() stays the same.
+class FileRevision {
+public:
+    // Returns true (and advances the revision) only when the path differs from the last one.
+    bool update(const std::string& filename);
+    int32_t revision() const { return revision_; }
+
+private:
+    std::string filename_;
+    int32_t revision_{0};
+};
 
 StatusBadge status_badge(moonraker::SessionState session, const model::PrinterState& printer);
 ConnectionOverlay connection_overlay(moonraker::SessionState session,

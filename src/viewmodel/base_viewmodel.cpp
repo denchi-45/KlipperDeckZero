@@ -60,6 +60,7 @@ BaseViewModel::BaseViewModel()
       printer_badge_text_("OFFLINE"),
       printer_badge_tone_(tone_to_int(format::Tone::Neutral)),
       printer_job_(format::job_name({}).c_str()),
+      printer_file_revision_(0),
       printer_progress_(0),
       printer_progress_text_("0%"),
       printer_elapsed_("--:--"),
@@ -140,6 +141,10 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
     const bool has_job = ready && printer.print_state != model::PrintState::Standby &&
                          printer.print_state != model::PrintState::Unknown;
     set_if_changed(printer_job_, format::job_name(has_job ? printer.filename : std::string()));
+    // job_name() drops the directory, so track the full path separately for the thumbnail.
+    if (printer_file_.update(printer.filename)) {
+        printer_file_revision_.set(printer_file_.revision());
+    }
 
     // Moonraker can report progress outside [0, 1]; keep the subject within its 0-1000 contract.
     double progress = has_job ? printer.progress() : 0.0;
@@ -188,6 +193,10 @@ lv_subject_t* BaseViewModel::printer_badge_tone_subject() {
 
 lv_subject_t* BaseViewModel::printer_job_subject() {
     return printer_job_.native();
+}
+
+lv_subject_t* BaseViewModel::printer_file_revision_subject() {
+    return printer_file_revision_.native();
 }
 
 lv_subject_t* BaseViewModel::printer_progress_subject() {

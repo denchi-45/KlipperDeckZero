@@ -8,6 +8,7 @@
 
 #include "subjects.h"
 #include "base_model.h"
+#include "printer_format.h"
 
 #include "lvgl.h"
 
@@ -44,6 +45,7 @@ public:
     lv_subject_t* printer_badge_text_subject();
     lv_subject_t* printer_badge_tone_subject();  // format::Tone
     lv_subject_t* printer_job_subject();
+    lv_subject_t* printer_file_revision_subject(); // bumps when the full file path changes
     lv_subject_t* printer_progress_subject();    // permille 0..1000
     lv_subject_t* printer_progress_text_subject();
     lv_subject_t* printer_elapsed_subject();
@@ -79,6 +81,8 @@ private:
     reactive::StringSubject<16> printer_badge_text_;
     reactive::IntSubject printer_badge_tone_;
     reactive::StringSubject<96> printer_job_;
+    format::FileRevision printer_file_;
+    reactive::IntSubject printer_file_revision_;
     reactive::IntSubject printer_progress_;
     reactive::StringSubject<8> printer_progress_text_;
     reactive::StringSubject<16> printer_elapsed_;

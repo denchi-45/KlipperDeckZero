@@ -96,6 +96,15 @@ std::string job_name(const std::string& filename) {
     return slash == std::string::npos ? filename : filename.substr(slash + 1);
 }
 
+bool FileRevision::update(const std::string& filename) {
+    if (filename == filename_) {
+        return false;
+    }
+    filename_ = filename;
+    ++revision_;
+    return true;
+}
+
 StatusBadge status_badge(moonraker::SessionState session, const model::PrinterState& printer) {
     switch (session) {
         case moonraker::SessionState::Stopped:
