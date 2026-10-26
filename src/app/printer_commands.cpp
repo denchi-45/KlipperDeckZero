@@ -12,6 +12,9 @@
 #include "thumbnail_source.h"
 #include "toast.h"
 
+#include <cstdio>
+#include <random>
+
 namespace app {
 namespace {
 
@@ -20,10 +23,19 @@ std::string first_line(const std::string& message) {
     return message.substr(0, message.find('\n'));
 }
 
+// Tells this run's saved G-code state names apart from those of an earlier run, which Klipper
+// may still hold.
+std::string make_run_id() {
+    std::random_device random;
+    char buffer[9];
+    std::snprintf(buffer, sizeof(buffer), "%08x", static_cast<unsigned>(random()));
+    return buffer;
+}
+
 } // namespace
 
 PrinterCommands::PrinterCommands(view::widgets::Toast& toast, viewmodel::BaseViewModel& view_model)
-    : toast_(toast), view_model_(view_model) {}
+    : toast_(toast), view_model_(view_model), gcode_state_(make_run_id()) {}
 
 void PrinterCommands::set_session(moonraker::MoonrakerSession* session) {
     session_ = session;
@@ -70,7 +82,10 @@ void PrinterCommands::move_extruder(const ExtruderRequest& request) {
         return;
     }
     if (require_gcode_state()) {
-        run_guarded_move(gcode::move_extruder(request.length_mm, request.speed_mm_s), gcode::kExtruderState,
+        run_guarded_move(gcode::kExtruderState,
+                         [&request](const std::string& name) {
+                             return gcode::move_extruder(request.length_mm, request.speed_mm_s, name);
+                         },
                          describe(request));
     }
 }
@@ -90,8 +105,12 @@ void PrinterCommands::home_axis(MoveAxis axis) {
 
 void PrinterCommands::jog(const JogRequest& request) {
     if (require_ready() && require_gcode_state()) {
-        run_guarded_move(gcode::jog_axis(axis_letter(request.axis), request.distance_mm, request.feed_mm_min),
-                         gcode::kJogState, describe(request));
+        run_guarded_move(gcode::kJogState,
+                         [&request](const std::string& name) {
+                             return gcode::jog_axis(axis_letter(request.axis), request.distance_mm,
+                                                    request.feed_mm_min, name);
+                         },
+                         describe(request));
     }
 }
 
@@ -158,6 +177,9 @@ void PrinterCommands::start_print(const std::string& path) {
         toast_.show("A print is already running", view::widgets::ToastTone::Warning);
         return;
     }
+    if (!require_gcode_state()) {
+        return;
+    }
     LOG_INFO("print start: {}", path);
     session_->print_start(path, [this, path](const moonraker::RpcResponse& response) {
         if (!response.ok) {
@@ -178,7 +200,7 @@ void PrinterCommands::pause_print() {
 }
 
 void PrinterCommands::resume_print() {
-    if (require_ready()) {
+    if (require_ready() && require_gcode_state()) {
         LOG_INFO("print resume");
         session_->print_resume(report("Print resumed"));
     }
@@ -232,11 +254,18 @@ bool PrinterCommands::require_gcode_state() {
     return false;
 }
 
-void PrinterCommands::run_guarded_move(const std::string& script, const std::string& state_name,
+void PrinterCommands::run_guarded_move(const std::string& state_prefix, const ScriptBuilder& build_script,
                                        const std::string& done_message) {
+    const auto ticket = gcode_state_.begin_move(state_prefix);
+    const auto script = build_script(gcode_state_.state_name());
     LOG_INFO("gcode: {}", script);
-    const auto ticket = gcode_state_.begin_move(state_name);
     session_->send_gcode(script, [this, ticket, done_message](const moonraker::RpcResponse& response) {
+        // A reset (session replaced, Klipper restarted) dropped this move: no toast on the
+        // screen of whatever came after it.
+        if (!gcode_state_.is_current(ticket)) {
+            LOG_INFO("gcode response after reset ignored: {}", response.ok ? "ok" : response.error.message);
+            return;
+        }
         const bool restore = gcode_state_.move_done(ticket, response.ok);
         if (response.ok) {
             toast_.show(done_message, view::widgets::ToastTone::Success);
@@ -254,6 +283,10 @@ void PrinterCommands::send_restore(GcodeStateGuard::Ticket ticket) {
     const auto script = gcode::restore_gcode_state(gcode_state_.state_name());
     LOG_INFO("gcode: {}", script);
     session_->send_gcode(script, [this, ticket](const moonraker::RpcResponse& response) {
+        if (!gcode_state_.is_current(ticket)) {
+            LOG_INFO("gcode state restore response after reset ignored");
+            return;
+        }
         // Without a saved state the printer is not in the move's relative mode: done as well.
         // Timeouts and disconnects stay failures, the move may have run.
         const bool nothing_saved = !response.ok && gcode_state_.nothing_to_restore(response.error.message);

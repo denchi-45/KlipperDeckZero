@@ -5,6 +5,7 @@
 #include "file_list_parser.h"
 
 #include <algorithm>
+#include <limits>
 
 namespace app {
 namespace {
@@ -17,6 +18,13 @@ double number_or(const moonraker::Json& object, const char* key, double fallback
 std::string string_or(const moonraker::Json& object, const char* key) {
     const auto it = object.find(key);
     return it != object.end() && it->is_string() ? it->get<std::string>() : std::string();
+}
+
+// Converting a double outside the target's range is undefined, so such values count as unknown
+// (0), like a missing field.
+template <typename T>
+T positive_or_zero(double value) {
+    return value > 0.0 && value < static_cast<double>(std::numeric_limits<T>::max()) ? static_cast<T>(value) : T{0};
 }
 
 } // namespace
@@ -36,8 +44,7 @@ std::vector<GcodeFile> parse_file_list(const moonraker::Json& result) {
             continue;
         }
         file.modified = number_or(entry, "modified", 0.0);
-        const double size = number_or(entry, "size", 0.0);
-        file.size = size > 0.0 ? static_cast<std::uint64_t>(size) : 0;
+        file.size = positive_or_zero<std::uint64_t>(number_or(entry, "size", 0.0));
         files.push_back(std::move(file));
     }
     std::stable_sort(files.begin(), files.end(), [](const GcodeFile& a, const GcodeFile& b) {
@@ -63,8 +70,8 @@ GcodeMetadata parse_metadata(const moonraker::Json& result) {
                 continue;
             }
             GcodeThumbnail thumbnail;
-            thumbnail.width = static_cast<int>(number_or(entry, "width", 0.0));
-            thumbnail.height = static_cast<int>(number_or(entry, "height", 0.0));
+            thumbnail.width = positive_or_zero<int>(number_or(entry, "width", 0.0));
+            thumbnail.height = positive_or_zero<int>(number_or(entry, "height", 0.0));
             thumbnail.relative_path = string_or(entry, "relative_path");
             if (!thumbnail.relative_path.empty()) {
                 metadata.thumbnails.push_back(std::move(thumbnail));

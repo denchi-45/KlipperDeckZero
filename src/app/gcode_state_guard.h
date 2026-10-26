@@ -17,6 +17,13 @@ namespace app {
 // the restore as a separate script and refuses movement until it succeeded. A failed restore
 // keeps movement refused; the next movement attempt retries it. A restore that finds no saved
 // state (see nothing_to_restore()) counts as done.
+//
+// Klipper keeps a saved state after RESTORE_GCODE_STATE, so every move saves under its own name
+// (begin_move()): a restore for a move that never reached Klipper then finds nothing instead of
+// an older move's state. run_id tells apart the names of different app runs.
+//
+// Printing must not start or resume while a separate restore may still be on the way, or the
+// restore would undo the print's settings (see block_reason()).
 class GcodeStateGuard {
 public:
     enum class State {
@@ -29,14 +36,21 @@ public:
     // Identifies the request a response belongs to; responses of an older ticket are ignored.
     using Ticket = std::uint32_t;
 
-    State state() const;
-    // Toast text while movement is refused, or nullptr when it may run.
-    const char* block_reason() const;
-    // The saved state the pending or failed restore is for, e.g. "kdz_jog".
-    const std::string& state_name() const;
+    explicit GcodeStateGuard(std::string run_id = std::string());
 
-    // Starts a guarded move that saved its state as state_name. Only valid while Idle.
-    Ticket begin_move(const std::string& state_name);
+    State state() const;
+    // Toast text while movement, or starting and resuming a print, is refused; nullptr when it
+    // may run.
+    const char* block_reason() const;
+    // The saved state of the current move, and of the pending or failed restore, e.g.
+    // "kdz_jog_1f2e3d4c_7".
+    const std::string& state_name() const;
+    // False for a response to a request from before a reset() or a newer request.
+    bool is_current(Ticket ticket) const;
+
+    // Starts a guarded move. Only valid while Idle. The move saves its state under state_name(),
+    // a name made from prefix (e.g. "kdz_jog") that no earlier move used.
+    Ticket begin_move(const std::string& prefix);
     // The move script finished. Returns true when the caller has to send the restore now; it
     // then calls restore_done() with the same ticket.
     bool move_done(Ticket ticket, bool ok);
@@ -52,6 +66,7 @@ public:
     void reset();
 
 private:
+    std::string run_id_;
     State state_{State::Idle};
     std::string state_name_;
     Ticket ticket_{0};

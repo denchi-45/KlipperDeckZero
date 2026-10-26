@@ -34,7 +34,7 @@ TEST_CASE("gcode state guard: a failed move blocks movement until the restore su
     const auto ticket = guard.begin_move("kdz_jog");
     CHECK(guard.move_done(ticket, false));
     CHECK(guard.state() == State::Restoring);
-    CHECK_EQ(guard.state_name(), std::string("kdz_jog"));
+    CHECK_EQ(guard.state_name(), std::string("kdz_jog_1"));
     CHECK(guard.block_reason() != nullptr);
 
     guard.restore_done(ticket, true);
@@ -52,7 +52,8 @@ TEST_CASE("gcode state guard: a failed restore keeps movement blocked until a re
 
     const auto retry = guard.begin_restore();
     CHECK(guard.state() == State::Restoring);
-    CHECK_EQ(guard.state_name(), std::string("kdz_extruder"));
+    // The retry restores the failed move's state.
+    CHECK_EQ(guard.state_name(), std::string("kdz_extruder_1"));
     guard.restore_done(retry, false);
     CHECK(guard.state() == State::RestoreFailed);
 
@@ -99,9 +100,9 @@ TEST_CASE("gcode state guard: an unknown-state error for our name means nothing 
     guard.restore_done(ticket, false);
     CHECK(guard.state() == State::RestoreFailed);
 
-    // After the reconnect the retry finds no saved state under kdz_jog.
+    // After the reconnect the retry finds no saved state under the move's name.
     const auto retry = guard.begin_restore();
-    const std::string error = "Unknown g-code state: kdz_jog";
+    const std::string error = "Unknown g-code state: kdz_jog_1";
     CHECK(guard.nothing_to_restore(error));
     guard.restore_done(retry, guard.nothing_to_restore(error));
     CHECK(guard.state() == State::Idle);
@@ -112,10 +113,11 @@ TEST_CASE("gcode state guard: an unknown-state error for another name keeps move
     GcodeStateGuard guard;
     const auto ticket = guard.begin_move("kdz_jog");
     CHECK(guard.move_done(ticket, false));
-    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_extruder"));
-    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_jog2"));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_extruder_1"));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_jog_12"));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: kdz_jog"));
     CHECK(!guard.nothing_to_restore("Unknown g-code state: default"));
-    guard.restore_done(ticket, guard.nothing_to_restore("Unknown g-code state: kdz_extruder"));
+    guard.restore_done(ticket, guard.nothing_to_restore("Unknown g-code state: kdz_extruder_1"));
     CHECK(guard.state() == State::RestoreFailed);
 }
 
@@ -130,4 +132,61 @@ TEST_CASE("gcode state guard: other restore errors keep RestoreFailed") {
     guard.restore_done(ticket, guard.nothing_to_restore("Must home axis first"));
     CHECK(guard.state() == State::RestoreFailed);
     CHECK(guard.block_reason() != nullptr);
+}
+
+TEST_CASE("gcode state guard: every move saves under a name no earlier move used") {
+    GcodeStateGuard guard("1f2e3d4c");
+    const auto first = guard.begin_move("kdz_jog");
+    const std::string first_name = guard.state_name();
+    CHECK_EQ(first_name, std::string("kdz_jog_1f2e3d4c_1"));
+    CHECK(!guard.move_done(first, true));
+
+    // Klipper still holds first_name (RESTORE_GCODE_STATE keeps it). The next jog never reaches
+    // Klipper, so its restore has to miss instead of bringing back the first jog's state.
+    const auto second = guard.begin_move("kdz_jog");
+    CHECK(guard.state_name() != first_name);
+    CHECK(guard.move_done(second, false));
+    CHECK(!guard.nothing_to_restore("Unknown g-code state: " + first_name));
+    CHECK(guard.nothing_to_restore("Unknown g-code state: " + guard.state_name()));
+
+    // Names stay fresh across a reset, and another run never shares them.
+    guard.reset();
+    guard.begin_move("kdz_jog");
+    CHECK_EQ(guard.state_name(), std::string("kdz_jog_1f2e3d4c_4"));
+    GcodeStateGuard other_run("99aa00bb");
+    other_run.begin_move("kdz_jog");
+    CHECK(other_run.state_name() != first_name);
+}
+
+TEST_CASE("gcode state guard: print start and resume wait until a failed move is restored") {
+    // PrinterCommands refuses start_print() / resume_print() while block_reason() is set: a
+    // separate restore sent after RESUME would undo what the print changed.
+    GcodeStateGuard guard;
+    const auto ticket = guard.begin_move("kdz_jog");
+    CHECK(guard.block_reason() != nullptr);
+    CHECK(guard.move_done(ticket, false));
+    CHECK(guard.block_reason() != nullptr);
+    guard.restore_done(ticket, false);
+    CHECK(guard.block_reason() != nullptr);
+    const auto retry = guard.begin_restore();
+    guard.restore_done(retry, true);
+    CHECK(guard.block_reason() == nullptr);
+}
+
+TEST_CASE("gcode state guard: responses from before a reset are not current") {
+    GcodeStateGuard guard;
+    const auto ticket = guard.begin_move("kdz_jog");
+    CHECK(guard.is_current(ticket));
+    // The session is replaced while the jog is in flight; its answer must not show a toast.
+    guard.reset();
+    CHECK(!guard.is_current(ticket));
+    CHECK(!guard.move_done(ticket, true));
+
+    // A retry supersedes the failed move's ticket.
+    const auto move = guard.begin_move("kdz_jog");
+    guard.move_done(move, false);
+    guard.restore_done(move, false);
+    const auto retry = guard.begin_restore();
+    CHECK(!guard.is_current(move));
+    CHECK(guard.is_current(retry));
 }

@@ -74,7 +74,8 @@ public:
     void file_metadata(const std::string& path, MetadataHandler handler);
     // path is relative to the gcodes root (see thumbnail_path()).
     void file_thumbnail(const std::string& path, ThumbnailHandler handler);
-    // Refused while a print is running or paused. Shows the status page once it started.
+    // Refused while a print is running or paused, and like resume_print() while a failed move's
+    // G-code state restore may still be on the way. Shows the status page once it started.
     void start_print(const std::string& path);
 
     void pause_print();
@@ -86,11 +87,14 @@ public:
 private:
     // Shows a warning and returns false unless commands can be sent now.
     bool require_ready();
-    // Shows a warning and returns false while GcodeStateGuard holds movement back; retries a
-    // failed restore.
+    // Shows a warning and returns false while GcodeStateGuard holds movement, or starting and
+    // resuming a print, back; retries a failed restore.
     bool require_gcode_state();
-    // A script that saved its G-code state as state_name; restores it separately if it fails.
-    void run_guarded_move(const std::string& script, const std::string& state_name,
+    // Builds a guarded move's script for the saved state name it gets.
+    using ScriptBuilder = std::function<std::string(const std::string& state_name)>;
+    // A script that saves its G-code state under a fresh name made from state_prefix; restores
+    // it separately if it fails.
+    void run_guarded_move(const std::string& state_prefix, const ScriptBuilder& build_script,
                           const std::string& done_message);
     void send_restore(GcodeStateGuard::Ticket ticket);
     void run_script(const std::string& script, const std::string& done_message);

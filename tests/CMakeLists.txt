@@ -59,6 +59,11 @@ target_include_directories(kdz_tests PRIVATE
     "${KDZ_SOURCE_DIR}/src/viewmodel"
 )
 
-target_link_libraries(kdz_tests PRIVATE kdz_moonraker)
+# has_png_header() reads the header with libpng, which the app links for LVGL's decoder anyway.
+if(NOT TARGET PNG::PNG)
+    find_package(PNG REQUIRED)
+endif()
+
+target_link_libraries(kdz_tests PRIVATE kdz_moonraker PNG::PNG)
 
 add_test(NAME kdz_tests COMMAND kdz_tests)

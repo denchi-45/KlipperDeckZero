@@ -6,6 +6,7 @@
 #include "status_thumbnail.h"
 #include "test_framework.h"
 
+#include <cstdint>
 #include <string>
 
 namespace {
@@ -17,6 +18,43 @@ using model::PrintState;
 // The 8-byte signature and the IHDR chunk up to the height: what has_png_header() needs.
 const std::string kPngStart = std::string("\x89PNG\r\n\x1a\n", 8) + std::string("\0\0\0\x0dIHDR", 8) +
                               std::string("\0\0\0\x20\0\0\0\x20", 8);
+
+void append_u32(std::string& out, std::uint32_t value) {
+    for (int shift = 24; shift >= 0; shift -= 8) {
+        out += static_cast<char>((value >> shift) & 0xff);
+    }
+}
+
+std::uint32_t crc32(const std::string& bytes) {
+    std::uint32_t crc = 0xffffffffu;
+    for (const unsigned char byte : bytes) {
+        crc ^= byte;
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+        }
+    }
+    return ~crc;
+}
+
+void append_chunk(std::string& out, const std::string& type, const std::string& data) {
+    append_u32(out, static_cast<std::uint32_t>(data.size()));
+    out += type + data;
+    append_u32(out, crc32(type + data));
+}
+
+// A grayscale PNG file of the given IHDR. libpng's header read stops at the image data, so the
+// one IDAT (a single black pixel) does not have to match the size.
+std::string png_file(std::uint32_t width, std::uint32_t height, char bit_depth = 8) {
+    std::string ihdr;
+    append_u32(ihdr, width);
+    append_u32(ihdr, height);
+    ihdr += std::string{bit_depth, 0, 0, 0, 0};
+    std::string png("\x89PNG\r\n\x1a\n", 8);
+    append_chunk(png, "IHDR", ihdr);
+    append_chunk(png, "IDAT", std::string("\x78\x9c\x63\x60\x00\x00\x00\x02\x00\x01", 10));
+    append_chunk(png, "IEND", "");
+    return png;
+}
 
 } // namespace
 
@@ -110,9 +148,26 @@ TEST_CASE("status thumbnail: restarting the same file ignores the previous print
 }
 
 TEST_CASE("png header: signature and image size are required") {
-    CHECK(app::has_png_header(kPngStart));
-    CHECK(app::has_png_header(kPngStart + "IDAT..."));
+    CHECK(app::has_png_header(png_file(32, 32)));
     CHECK(!app::has_png_header(""));
     CHECK(!app::has_png_header(kPngStart.substr(0, 23)));
-    CHECK(!app::has_png_header("GIF89a" + kPngStart));
+    CHECK(!app::has_png_header("GIF89a" + png_file(32, 32)));
+}
+
+TEST_CASE("png header: libpng has to accept the header") {
+    // Signature and size alone pass the decoder's size check but not libpng.
+    CHECK(!app::has_png_header(kPngStart + "IDAT..."));
+    // IHDR with a wrong checksum, cut off before the image data, zero width, bit depth 3.
+    auto bad_crc = png_file(32, 32);
+    bad_crc[29] ^= 0x01;
+    CHECK(!app::has_png_header(bad_crc));
+    CHECK(!app::has_png_header(png_file(32, 32).substr(0, 33)));
+    CHECK(!app::has_png_header(png_file(0, 32)));
+    CHECK(!app::has_png_header(png_file(32, 32, 3)));
+}
+
+TEST_CASE("png header: images bigger than a thumbnail are refused") {
+    CHECK(app::has_png_header(png_file(1024, 1024)));
+    CHECK(!app::has_png_header(png_file(1025, 300)));
+    CHECK(!app::has_png_header(png_file(300, 70000)));
 }

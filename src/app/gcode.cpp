@@ -28,12 +28,12 @@ std::string restore_gcode_state(const std::string& name) {
     return "RESTORE_GCODE_STATE NAME=" + name;
 }
 
-std::string move_extruder(int length_mm, int speed_mm_s) {
+std::string move_extruder(int length_mm, int speed_mm_s, const std::string& state_name) {
     const int feed_mm_min = (speed_mm_s > 0 ? speed_mm_s : 1) * 60;
-    return std::string("SAVE_GCODE_STATE NAME=") + kExtruderState + "\n"
+    return "SAVE_GCODE_STATE NAME=" + state_name + "\n"
            "M83\n"
            "G1 E" + std::to_string(length_mm) + " F" + std::to_string(feed_mm_min) + "\n" +
-           restore_gcode_state(kExtruderState);
+           restore_gcode_state(state_name);
 }
 
 std::string home_axes(const std::string& axes) {
@@ -45,12 +45,12 @@ std::string home_axes(const std::string& axes) {
     return script;
 }
 
-std::string jog_axis(char axis, double distance_mm, int feed_mm_min) {
-    return std::string("SAVE_GCODE_STATE NAME=") + kJogState + "\n"
+std::string jog_axis(char axis, double distance_mm, int feed_mm_min, const std::string& state_name) {
+    return "SAVE_GCODE_STATE NAME=" + state_name + "\n"
            "G91\n"
            "G1 " + std::string(1, axis) + format_distance(distance_mm) + " F" +
            std::to_string(feed_mm_min > 0 ? feed_mm_min : 1) + "\n" +
-           restore_gcode_state(kJogState);
+           restore_gcode_state(state_name);
 }
 
 std::string motors_off() {

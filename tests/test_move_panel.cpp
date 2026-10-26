@@ -43,13 +43,13 @@ TEST_CASE("gcode: homing all axes or one") {
 }
 
 TEST_CASE("gcode: jogs keep the printer's positioning mode") {
-    CHECK(app::gcode::jog_axis('X', 10.0, 3000) ==
-          "SAVE_GCODE_STATE NAME=kdz_jog\n"
+    CHECK(app::gcode::jog_axis('X', 10.0, 3000, "kdz_jog_7") ==
+          "SAVE_GCODE_STATE NAME=kdz_jog_7\n"
           "G91\n"
           "G1 X10 F3000\n"
-          "RESTORE_GCODE_STATE NAME=kdz_jog");
-    CHECK(app::gcode::jog_axis('Z', -0.1, 600).find("G1 Z-0.1 F600\n") != std::string::npos);
-    CHECK(app::gcode::jog_axis('Y', -50.0, 3000).find("G1 Y-50 F3000\n") != std::string::npos);
+          "RESTORE_GCODE_STATE NAME=kdz_jog_7");
+    CHECK(app::gcode::jog_axis('Z', -0.1, 600, app::gcode::kJogState).find("G1 Z-0.1 F600\n") != std::string::npos);
+    CHECK(app::gcode::jog_axis('Y', -50.0, 3000, app::gcode::kJogState).find("G1 Y-50 F3000\n") != std::string::npos);
 }
 
 TEST_CASE("gcode: a failed jog or filament move restores its state on its own") {
@@ -57,11 +57,11 @@ TEST_CASE("gcode: a failed jog or filament move restores its state on its own") 
     CHECK_EQ(app::gcode::restore_gcode_state(app::gcode::kExtruderState),
              std::string("RESTORE_GCODE_STATE NAME=kdz_extruder"));
     // The scripts end with the same restore when nothing fails.
-    const auto jog = app::gcode::jog_axis('X', 10.0, 3000);
-    CHECK(jog.find("SAVE_GCODE_STATE NAME=kdz_jog\n") == 0);
-    CHECK(jog.substr(jog.rfind('\n') + 1) == app::gcode::restore_gcode_state(app::gcode::kJogState));
-    const auto extrude = app::gcode::move_extruder(10, 5);
-    CHECK(extrude.substr(extrude.rfind('\n') + 1) == app::gcode::restore_gcode_state(app::gcode::kExtruderState));
+    const auto jog = app::gcode::jog_axis('X', 10.0, 3000, "kdz_jog_7");
+    CHECK(jog.find("SAVE_GCODE_STATE NAME=kdz_jog_7\n") == 0);
+    CHECK(jog.substr(jog.rfind('\n') + 1) == app::gcode::restore_gcode_state("kdz_jog_7"));
+    const auto extrude = app::gcode::move_extruder(10, 5, "kdz_extruder_8");
+    CHECK(extrude.substr(extrude.rfind('\n') + 1) == app::gcode::restore_gcode_state("kdz_extruder_8"));
 }
 
 TEST_CASE("gcode: distances drop trailing zeros") {

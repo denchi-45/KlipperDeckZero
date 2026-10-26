@@ -5,8 +5,11 @@
 #include "gcode_state_guard.h"
 
 #include <cctype>
+#include <utility>
 
 namespace app {
+
+GcodeStateGuard::GcodeStateGuard(std::string run_id) : run_id_(std::move(run_id)) {}
 
 GcodeStateGuard::State GcodeStateGuard::state() const {
     return state_;
@@ -30,10 +33,16 @@ const std::string& GcodeStateGuard::state_name() const {
     return state_name_;
 }
 
-GcodeStateGuard::Ticket GcodeStateGuard::begin_move(const std::string& state_name) {
+bool GcodeStateGuard::is_current(Ticket ticket) const {
+    return ticket == ticket_;
+}
+
+GcodeStateGuard::Ticket GcodeStateGuard::begin_move(const std::string& prefix) {
     state_ = State::Moving;
-    state_name_ = state_name;
-    return ++ticket_;
+    ++ticket_;
+    // Tickets only grow (reset() too), so no two moves of this run share a name.
+    state_name_ = prefix + "_" + (run_id_.empty() ? "" : run_id_ + "_") + std::to_string(ticket_);
+    return ticket_;
 }
 
 bool GcodeStateGuard::move_done(Ticket ticket, bool ok) {
@@ -66,7 +75,7 @@ bool GcodeStateGuard::nothing_to_restore(const std::string& error_message) const
         return false;
     }
     // Klipper's RESTORE_GCODE_STATE: "Unknown g-code state: <name>". The name has to end there,
-    // so an error for "kdz_jog2" is not taken for "kdz_jog".
+    // so an error for "kdz_jog_12" is not taken for "kdz_jog_1".
     const std::string expected = "Unknown g-code state: " + state_name_;
     const auto pos = error_message.find(expected);
     if (pos == std::string::npos) {

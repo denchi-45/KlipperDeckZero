@@ -70,6 +70,25 @@ TEST_CASE("files: metadata lists the thumbnails and skips broken entries") {
     CHECK(app::parse_metadata(moonraker::Json::parse(R"({"thumbnails": null})")).thumbnails.empty());
 }
 
+TEST_CASE("files: sizes outside the integer range count as unknown") {
+    const auto metadata = app::parse_metadata(moonraker::Json::parse(R"({
+        "thumbnails": [
+            {"width": 1e30, "height": 300, "relative_path": "huge.png"},
+            {"width": -5, "height": 3e9, "relative_path": "negative.png"}
+        ]
+    })"));
+    CHECK(metadata.thumbnails.size() == 2);
+    CHECK(metadata.thumbnails[0].width == 0);
+    CHECK(metadata.thumbnails[0].height == 300);
+    CHECK(metadata.thumbnails[1].width == 0);
+    CHECK(metadata.thumbnails[1].height == 0);
+    CHECK(app::pick_thumbnail(metadata.thumbnails, 46) == nullptr);
+
+    const auto files = app::parse_file_list(moonraker::Json::parse(R"([{"path": "a.gcode", "size": 1e30}])"));
+    CHECK(files.size() == 1);
+    CHECK(files[0].size == 0);
+}
+
 TEST_CASE("files: the smallest thumbnail that fills the box is picked, else the largest") {
     const std::vector<app::GcodeThumbnail> thumbnails = {
         {32, 32, "a-32.png"}, {300, 300, "a-300.png"}, {96, 96, "a-96.png"}, {0, 0, "broken.png"}};

@@ -6,6 +6,8 @@
 
 #include "printer_format.h"
 
+#include <png.h>
+
 #include <algorithm>
 #include <cstdio>
 
@@ -15,6 +17,9 @@ namespace {
 constexpr char kPngSignature[] = "\x89PNG\r\n\x1a\n";
 // Signature, IHDR length and type, width and height.
 constexpr std::size_t kPngHeaderBytes = 24;
+// Slicers write 300x300 and smaller. The decoder reads only 16 bits of each side for the image
+// header, and a bigger image could not be decoded into the LVGL heap anyway.
+constexpr png_uint_32 kMaxPngSide = 1024;
 
 // The path comes from file metadata and is read from disk over a Unix socket connection,
 // so it must stay below the G-code file's directory.
@@ -59,7 +64,19 @@ std::string thumbnail_path(const std::string& gcode_path, const std::string& rel
 }
 
 bool has_png_header(const std::string& data) {
-    return data.size() >= kPngHeaderBytes && data.compare(0, sizeof(kPngSignature) - 1, kPngSignature) == 0;
+    if (data.size() < kPngHeaderBytes || data.compare(0, sizeof(kPngSignature) - 1, kPngSignature) != 0) {
+        return false;
+    }
+    // The same first step as the decoder's open: it rejects e.g. a broken IHDR, which the
+    // signature check alone lets through to an empty image.
+    png_image image{};
+    image.version = PNG_IMAGE_VERSION;
+    if (!png_image_begin_read_from_memory(&image, data.data(), data.size())) {
+        return false;
+    }
+    const bool fits = image.width <= kMaxPngSide && image.height <= kMaxPngSide;
+    png_image_free(&image);
+    return fits;
 }
 
 std::string format_size(std::uint64_t bytes) {
