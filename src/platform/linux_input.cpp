@@ -177,9 +177,11 @@ uint32_t map_evdev_letter_or_digit(uint16_t code) {
     return 0;
 }
 
-// Characters needed for host names and file paths that only exist with Shift held. The keyboard
-// sends a Sym-layer character as the US key that types it, e.g. Sym+Q '~' as Shift+`, so
-// Sym+H '<' and Sym+J '>' arrive as Shift+, and Shift+. and become the layer keys.
+// Characters needed for host names and file paths that only exist with Shift held. Shift+, and
+// Shift+. ('<' / '>') are kept as layer keys for USB keyboards. On the real CardputerZero
+// (TCA8418 keypad, verified by evdev capture 2026-10-27) Sym is its own key (code 383), not
+// Shift: the driver reports Sym+H as KEY_KPDOT and Sym+J as KEY_ZENKAKUHANKAKU, and those two
+// codes are mapped to the layer keys in map_evdev_key().
 uint32_t map_evdev_shifted(uint16_t code) {
     switch (code) {
         case KEY_COMMA:
@@ -233,6 +235,10 @@ uint32_t map_evdev_key(uint16_t code, bool shift) {
             return kKeyPrintScreen;
         case KEY_HELP:
             return kKeyHelp;
+        case KEY_KPDOT: // CardputerZero Sym+H
+            return kKeyPrevLayer;
+        case KEY_ZENKAKUHANKAKU: // CardputerZero Sym+J
+            return kKeyNextLayer;
         default:
             return map_evdev_letter_or_digit(code);
     }
