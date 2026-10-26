@@ -70,6 +70,18 @@ uint32_t map_control_key(SDL_Keycode key) {
     }
 }
 
+// Typed characters with an app meaning; '<' and '>' are Sym+H / Sym+J on the device keyboard.
+uint32_t map_text_key(uint32_t key) {
+    switch (key) {
+        case '<':
+            return platform::kKeyPrevLayer;
+        case '>':
+            return platform::kKeyNextLayer;
+        default:
+            return key;
+    }
+}
+
 uint32_t utf8_character_size(const char* text) {
     const auto lead = static_cast<uint8_t>(*text);
     if ((lead & 0x80U) == 0) return 1;
@@ -388,7 +400,7 @@ void DesktopSimulatorFrame::handle_event(const SDL_Event& event, bool& running) 
                             std::min<uint32_t>(length, sizeof(key)),
                             reinterpret_cast<uint8_t*>(&key));
                 if (keypad_ && key != '4') {
-                    keypad_->emit_key(key);
+                    keypad_->emit_key(map_text_key(key));
                 }
                 cursor += length;
             }

@@ -7,10 +7,13 @@
 
 namespace platform {
 
-constexpr size_t kNavKeyCount = 6;
+// Keys 4..8 click the nav bar slot of the same position (see register_nav_button).
+constexpr size_t kNavKeyCount = 5;
 constexpr uint32_t kSpecialKeyBase = 0x200000U;
-constexpr uint32_t kKeyPrintScreen = kSpecialKeyBase | 18U;
-constexpr uint32_t kKeyHelp = kSpecialKeyBase | 19U;
+constexpr uint32_t kKeyPrintScreen = kSpecialKeyBase | 18U; // Fn+J
+constexpr uint32_t kKeyHelp = kSpecialKeyBase | 19U;        // Fn+H
+constexpr uint32_t kKeyPrevLayer = kSpecialKeyBase | 20U;   // Sym+H
+constexpr uint32_t kKeyNextLayer = kSpecialKeyBase | 21U;   // Sym+J
 
 using KeyReleaseListener = void (*)(uint32_t key, const char* key_name, void* user_data);
 using GlobalKeyListener = bool (*)(uint32_t key,
@@ -20,7 +23,6 @@ using GlobalKeyListener = bool (*)(uint32_t key,
 
 void init_key_input(lv_display_t* display);
 void attach_key_router(lv_indev_t* indev);
-void set_nav_shortcut_mode(bool enabled);
 void register_nav_button(size_t index, lv_obj_t* button);
 void unregister_nav_button(size_t index, lv_obj_t* button);
 void set_key_release_listener(KeyReleaseListener listener, void* user_data);

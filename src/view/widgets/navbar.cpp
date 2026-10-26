@@ -13,21 +13,35 @@
 #include "ui_const.h"
 
 #include <cstdint>
+#include <cstdio>
 
 namespace view::widgets {
 namespace {
 
-// Same order as model::AppPage and the physical keys 4..9.
-constexpr std::array<const char*, model::kNavPageCount> kPageIcons = {
-    ICON_GAUGE,
-    ICON_THERMOMETER,
-    ICON_DROP,
-    ICON_FILES,
-    ICON_PLAY_PAUSE,
-    ICON_ARROWS_OUT_CARDINAL,
-};
+static_assert(platform::kNavKeyCount == model::kNavSlotCount, "one nav key per slot");
 
-constexpr std::array<int32_t, model::kNavPageCount> kNavButtonXOffsets = {30, 18, 6, -6, -18, -30};
+constexpr int32_t kSlotGap = 12;
+constexpr int32_t kLayerLabelInset = 8;
+
+const char* page_icon(model::AppPage page) {
+    switch (page) {
+        case model::AppPage::Status:
+            return ICON_GAUGE;
+        case model::AppPage::Temperature:
+            return ICON_THERMOMETER;
+        case model::AppPage::Extruder:
+            return ICON_DROP;
+        case model::AppPage::Files:
+            return ICON_FILES;
+        case model::AppPage::Control:
+            return ICON_PLAY_PAUSE;
+        case model::AppPage::Move:
+            return ICON_ARROWS_OUT_CARDINAL;
+        case model::AppPage::Settings:
+            return ICON_PLUGS;
+    }
+    return "";
+}
 
 } // namespace
 
@@ -44,6 +58,10 @@ NavBar::~NavBar() {
     if (page_observer_) {
         lv_observer_remove(page_observer_);
         page_observer_ = nullptr;
+    }
+    if (layer_observer_) {
+        lv_observer_remove(layer_observer_);
+        layer_observer_ = nullptr;
     }
     if (theme_observer_) {
         lv_observer_remove(theme_observer_);
@@ -62,42 +80,49 @@ void NavBar::build() {
     lv_obj_align(core_obj_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_clear_flag(core_obj_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(core_obj_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(core_obj_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_left(core_obj_, 8, 0);
-    lv_obj_set_style_pad_right(core_obj_, 8, 0);
+    lv_obj_set_flex_align(core_obj_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(core_obj_, kSlotGap, 0);
     reactive::bind_theme(core_obj_, view_model_.dark_mode_subject(), reactive::ThemeRole::Bar);
 
     create_icon_buttons();
+
+    // "1/2" at the right end, outside the centered slots.
+    layer_label_ = lv_label_create(core_obj_);
+    lv_obj_add_flag(layer_label_, LV_OBJ_FLAG_FLOATING);
+    auto* layer_font = assets_.load_standard_font(11);
+    lv_obj_set_style_text_font(layer_label_, layer_font ? layer_font : &lv_font_montserrat_12, 0);
+    lv_obj_align(layer_label_, LV_ALIGN_RIGHT_MID, -kLayerLabelInset, 0);
+
     page_observer_ = reactive::observe_obj(core_obj_, view_model_.current_page_subject(), update_icons_cb, this);
+    layer_observer_ = reactive::observe_obj(core_obj_, view_model_.current_layer_subject(), update_icons_cb, this);
     theme_observer_ = reactive::observe_obj(core_obj_, view_model_.dark_mode_subject(), update_icons_cb, this);
     update_icon_buttons();
 }
 
 void NavBar::create_icon_buttons() {
     icon_font_ = assets_.load_font("Phosphor-Fill.ttf", 22);
-    platform::set_nav_shortcut_mode(false);
 
     for (size_t i = 0; i < icon_buttons_.size(); ++i) {
         icon_buttons_[i] = std::make_unique<IconButton>(core_obj_,
                                                         view_model_,
                                                         32,
                                                         24,
-                                                        kPageIcons[i],
+                                                        "",
                                                         icon_font_ ? icon_font_ : &lv_font_montserrat_14,
                                                         view::palette(false).text,
                                                         view::palette(true).text,
-                                                        show_page_cb,
+                                                        select_slot_cb,
                                                         &view_model_,
                                                         true);
         icon_buttons_[i]->build();
         lv_obj_set_user_data(icon_buttons_[i]->root(), reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
-        lv_obj_set_style_translate_x(icon_buttons_[i]->root(), kNavButtonXOffsets[i], 0);
         platform::register_nav_button(i, icon_buttons_[i]->root());
     }
 }
 
 void NavBar::update_icon_buttons() {
-    const auto current = static_cast<size_t>(view_model_.current_page());
+    const auto layer = view_model_.current_layer();
+    const auto current = view_model_.current_page();
     const auto light = view::palette(false);
     const auto dark = view::palette(true);
 
@@ -105,25 +130,33 @@ void NavBar::update_icon_buttons() {
         if (!icon_buttons_[i]) {
             continue;
         }
-        if (i == current) {
+        const auto page = model::nav_slot_page(layer, i);
+        // An empty slot stays in place, blank and unclickable, so the slots keep their keys.
+        icon_buttons_[i]->set_text(page ? page_icon(*page) : "");
+        icon_buttons_[i]->set_enabled(page.has_value());
+        if (page && *page == current) {
             icon_buttons_[i]->set_colors(light.primary, dark.primary);
         }
         else {
             icon_buttons_[i]->set_colors(light.text_disabled, dark.text_disabled);
         }
     }
+
+    if (layer_label_) {
+        char text[8];
+        std::snprintf(text, sizeof(text), "%zu/%zu", layer + 1, model::kNavLayerCount);
+        lv_label_set_text(layer_label_, text);
+        lv_obj_set_style_text_color(layer_label_, view::palette(view_model_.is_dark_mode()).text, 0);
+    }
 }
 
-void NavBar::show_page_cb(lv_event_t* event) {
+void NavBar::select_slot_cb(lv_event_t* event) {
     auto* view_model = static_cast<viewmodel::BaseViewModel*>(lv_event_get_user_data(event));
     auto* button = static_cast<lv_obj_t*>(lv_event_get_current_target(event));
     if (!view_model || !button) {
         return;
     }
-    const auto index = reinterpret_cast<uintptr_t>(lv_obj_get_user_data(button));
-    if (index < model::kNavPageCount) {
-        view_model->show_page(static_cast<model::AppPage>(index));
-    }
+    view_model->select_nav_slot(reinterpret_cast<uintptr_t>(lv_obj_get_user_data(button)));
 }
 
 void NavBar::update_icons_cb(lv_observer_t* observer, lv_subject_t* subject) {

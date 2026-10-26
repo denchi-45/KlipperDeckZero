@@ -35,6 +35,7 @@ add_executable(kdz_tests
     test_file_browser.cpp
     test_thumbnail_source.cpp
     test_status_thumbnail.cpp
+    test_nav_layers.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
     "${KDZ_SOURCE_DIR}/src/app/control_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/extruder_panel.cpp"
@@ -51,12 +52,14 @@ add_executable(kdz_tests
     "${KDZ_SOURCE_DIR}/src/app/temperature_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/thumbnail_source.cpp"
     "${KDZ_SOURCE_DIR}/src/viewmodel/printer_format.cpp"
+    "${KDZ_SOURCE_DIR}/src/model/nav_layers.cpp"
 )
 
 target_include_directories(kdz_tests PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${KDZ_SOURCE_DIR}/src/app"
     "${KDZ_SOURCE_DIR}/src/viewmodel"
+    "${KDZ_SOURCE_DIR}/src/model"
 )
 
 # has_png_header() reads the header with libpng, which the app links for LVGL's decoder anyway.

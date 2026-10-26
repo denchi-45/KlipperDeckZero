@@ -41,11 +41,19 @@ void BaseModel::toggle_dark_mode() {
 }
 
 AppPage BaseModel::current_page() const {
-    return current_page_;
+    return nav_.page();
 }
 
-void BaseModel::set_current_page(AppPage page) {
-    current_page_ = page;
+std::size_t BaseModel::current_layer() const {
+    return nav_.layer();
+}
+
+const NavLayers& BaseModel::nav() const {
+    return nav_;
+}
+
+NavLayers& BaseModel::nav() {
+    return nav_;
 }
 
 } // namespace model

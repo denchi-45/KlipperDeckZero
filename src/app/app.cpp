@@ -246,6 +246,19 @@ private:
             return true;
         }
 
+        if (key == platform::kKeyPrevLayer || key == platform::kKeyNextLayer) {
+            if (!long_pressed) {
+                if (key == platform::kKeyPrevLayer) {
+                    view_model_.previous_nav_layer();
+                }
+                else {
+                    view_model_.next_nav_layer();
+                }
+            }
+            return true;
+        }
+
+        // Settings sits in nav layer 2; jumping there switches the layer too.
         if ((key == 's' || key == 'S') && !long_pressed) {
             view_model_.show_page(model::AppPage::Settings);
             return true;
@@ -259,6 +272,8 @@ private:
         }
 
         const bool is_escape = key == LV_KEY_ESC;
+        // On Status (layer 1, slot 1) its own key 4 doubles as the exit key; elsewhere 4 picks
+        // slot 1 of the shown layer through the nav bar.
         const bool is_home_exit_key =
             key == '4' &&
             ((!long_pressed && view_model_.current_page() == model::AppPage::Status) ||

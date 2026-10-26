@@ -23,7 +23,6 @@ namespace platform {
 namespace {
 
 std::array<lv_obj_t*, kNavKeyCount> nav_buttons{};
-bool nav_shortcut_mode = false;
 // The active hold belongs to the input device that pressed it; other devices cannot release it.
 lv_indev_t* hold_owner = nullptr;
 uint32_t pressed_key = 0;
@@ -54,40 +53,7 @@ struct EvdevKeypad {
 #endif
 
 size_t nav_key_to_index(uint32_t key) {
-    if (nav_shortcut_mode) {
-        switch (key) {
-            case LV_KEY_ESC:
-                return 4;
-            case 'z':
-            case 'Z':
-            case LV_KEY_LEFT:
-                return 1;
-            case 'c':
-            case 'C':
-            case LV_KEY_RIGHT:
-                return 3;
-            default:
-                return kNavKeyCount;
-        }
-    }
-
-    switch (key) {
-        case '4':
-        case LV_KEY_ESC:
-            return 0;
-        case '5':
-            return 1;
-        case '6':
-            return 2;
-        case '7':
-            return 3;
-        case '8':
-            return 4;
-        case '9':
-            return 5;
-        default:
-            return kNavKeyCount;
-    }
+    return key >= '4' && key < '4' + kNavKeyCount ? key - '4' : kNavKeyCount;
 }
 
 void dispatch_nav_key(uint32_t key) {
@@ -211,9 +177,15 @@ uint32_t map_evdev_letter_or_digit(uint16_t code) {
     return 0;
 }
 
-// Characters needed for host names and file paths that only exist with Shift held.
+// Characters needed for host names and file paths that only exist with Shift held. The keyboard
+// sends a Sym-layer character as the US key that types it, e.g. Sym+Q '~' as Shift+`, so
+// Sym+H '<' and Sym+J '>' arrive as Shift+, and Shift+. and become the layer keys.
 uint32_t map_evdev_shifted(uint16_t code) {
     switch (code) {
+        case KEY_COMMA:
+            return kKeyPrevLayer;
+        case KEY_DOT:
+            return kKeyNextLayer;
         case KEY_MINUS:
             return '_';
         case KEY_SEMICOLON:
@@ -257,20 +229,6 @@ uint32_t map_evdev_key(uint16_t code, bool shift) {
             return LV_KEY_LEFT;
         case KEY_RIGHT:
             return LV_KEY_RIGHT;
-        case KEY_Z:
-            return 'z';
-        case KEY_C:
-            return 'c';
-        case KEY_4:
-            return '4';
-        case KEY_5:
-            return '5';
-        case KEY_6:
-            return '6';
-        case KEY_7:
-            return '7';
-        case KEY_8:
-            return '8';
         case KEY_SYSRQ:
             return kKeyPrintScreen;
         case KEY_HELP:
@@ -444,10 +402,6 @@ void attach_key_router(lv_indev_t* indev) {
     lv_indev_add_event_cb(indev, key_event_cb, LV_EVENT_KEY, nullptr);
 }
 
-void set_nav_shortcut_mode(bool enabled) {
-    nav_shortcut_mode = enabled;
-}
-
 void register_nav_button(size_t index, lv_obj_t* button) {
     if (index >= nav_buttons.size()) {
         return;
@@ -519,6 +473,10 @@ const char* describe_key(uint32_t key) {
             return "PrintScreen";
         case kKeyHelp:
             return "Help";
+        case kKeyPrevLayer:
+            return "PrevLayer";
+        case kKeyNextLayer:
+            return "NextLayer";
         default:
             break;
     }

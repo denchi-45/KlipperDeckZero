@@ -216,6 +216,19 @@ uint32_t fn_key_for(char key) {
     }
 }
 
+// Sym chords with an app meaning instead of the legend's character, as on the device (see
+// map_evdev_shifted in linux_input.cpp).
+uint32_t sym_key_for(const KeySpec& key) {
+    switch (key.base) {
+        case 'h':
+            return platform::kKeyPrevLayer;
+        case 'j':
+            return platform::kKeyNextLayer;
+        default:
+            return static_cast<uint8_t>(key.sym);
+    }
+}
+
 std::string key_kind_name(const KeySpec& key) {
     switch (key.kind) {
         case KeyKind::Character:
@@ -288,6 +301,10 @@ std::string output_key_name(uint32_t key) {
             return "help";
         case platform::kKeyPrintScreen:
             return "print-screen";
+        case platform::kKeyPrevLayer:
+            return "prev-layer";
+        case platform::kKeyNextLayer:
+            return "next-layer";
         case SDLK_INSERT:
             return "insert";
         case LV_KEY_UP:
@@ -494,7 +511,7 @@ void DesktopVirtualKeypad::handle_key(uint8_t key_index) {
         output = fn_key_for(key.base);
     }
     else if (mode_ == Mode::Sym) {
-        output = static_cast<uint8_t>(key.sym);
+        output = sym_key_for(key);
     }
     else if (mode_ == Mode::Shift && key.base >= 'a' && key.base <= 'z') {
         output = static_cast<uint8_t>(key.base - 'a' + 'A');
