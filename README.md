@@ -23,7 +23,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 ### 画面構成
 
-<img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示画面。上からタイトルバー、PRINTING バッジとファイル名と進捗バー、時間・レイヤー・温度、最下行の Speed/Flow/Fan、ナビバー">
+<img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示画面。上からタイトルバー、PRINTING バッジとファイル名と進捗バー、時間・レイヤー・温度、最下行の Speed/Flow/Fan、5 スロットのナビバーと右端のレイヤー表示 1/2">
 
 どの画面も同じ枠組みです。
 
@@ -35,9 +35,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 - **トースト**: 操作の結果(成功 / Klipper のエラー)や「Printer is not ready」などを、画面下部に一時的に出す。
 - **テーマ**: ライト / ダークを `D` で切り替える。
 
-> この README のスクリーンショットは、デスクトップシミュレーターを疑似 Moonraker(fake_moonraker)に接続して撮影したものです。本体フレームとバーチャルキーボードを含めて表示しています(キーボード上の記号はシミュレーターでのキー割り当ての目安です)。
->
-> ⚠️ スクリーンショットのナビバーは、レイヤー制にする前の旧仕様(6 アイコン、キー `4`〜`9`)のままです。現在のナビバーは上の説明のとおり 5 スロット + レイヤー表示です。撮り直すまでは説明のほうを正としてください。
+> この README のスクリーンショットは、デスクトップシミュレーターを疑似 Moonraker(fake_moonraker)に接続して撮影したものです。本体フレームとバーチャルキーボードを含めて表示しています(キーボード上の記号はシミュレーターでのキー割り当ての目安です)。撮り直し方は「[README のスクリーンショット](#readme-のスクリーンショット)」を参照してください。
 
 ### 画面一覧
 
@@ -74,7 +72,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 | 印刷中(ライト) | 印刷中(ダーク) |
 |---|---|
-| <img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示(ライトテーマ)。PRINTING バッジ、ファイル名、進捗 1%、経過/残り時間、レイヤー 1/240、ノズル 213.4/215、ベッド 55.8/60"> | <img src="docs/images/screen-status-printing-dark.png" width="640" alt="印刷中の状態表示(ダークテーマ)"> |
+| <img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示(ライトテーマ)。PRINTING バッジ、ファイル名、進捗 3%、経過 02:35 / 残り 1:20:25、レイヤー 7/240、ノズル 215.3/215、ベッド 58.4/60"> | <img src="docs/images/screen-status-printing-dark.png" width="640" alt="印刷中の状態表示(ダークテーマ)"> |
 
 <img src="docs/images/screen-status-ready.png" width="640" alt="待機中の状態表示。READY バッジと No active print、ノズル・ベッドの目標温度は off">
 
@@ -95,7 +93,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 #### 押し出し / 引き戻し(レイヤー 1 の `6`)
 
-<img src="docs/images/screen-extruder.png" width="640" alt="押し出し画面。上部に Ready to extrude、Length・Speed・Move(Retract / Extrude)の選択行">
+<img src="docs/images/screen-extruder.png" width="640" alt="押し出し画面。上部にノズル温度と Nozzle too cold to extrude(ノズルが冷えているため)、Length・Speed・Move(Retract / Extrude)の選択行">
 
 `↑`/`↓` で長さ(1/5/10/25/50 mm)・速度(2/5/10 mm/s)・向き(Retract / Extrude)を選び、`←`/`→` で切り替えます。`Enter` でどの行からでも実行します。画面上部にノズル温度と、押し出せるかどうかを出します。
 
@@ -128,7 +126,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 #### 軸の移動(レイヤー 2 の `4`)
 
-<img src="docs/images/screen-move.png" width="640" alt="移動画面。上部に X/Y/Z の位置と Not homed、Axis X/Y/Z と Step 0.1/1/10/50、X-10 / X+10、Home X・Home all・Motors off">
+<img src="docs/images/screen-move.png" width="640" alt="移動画面。上部に X/Y/Z の位置と Not homed、Axis X/Y/Z と Step 0.1/1/10/50、X-10 / X+10、Home X・Home all・Motors off。ナビバーはレイヤー 2(2/2)">
 
 `↑`/`↓` で項目(軸 / 移動量 / `−` 方向 / `+` 方向 / その軸のホーム / 全軸ホーム / モーターオフ)を選びます。軸(X/Y/Z)と移動量(0.1/1/10/50 mm)は `←`/`→` で切り替え、ほかの項目は `Enter` で実行します。画面上部にツールヘッドの位置とホーム済みの軸(「Not homed」、または「Homed」の後に軸名)を出します。
 
@@ -143,7 +141,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 #### 接続設定(レイヤー 2 の `5`、または `S`)
 
-<img src="docs/images/screen-settings.png" width="640" alt="接続設定画面。Connect to Network、Host・Port・API key、Save & connect、最下行に状態バッジ">
+<img src="docs/images/screen-settings.png" width="640" alt="接続設定画面。Connect to Network、Host・Port・API key、Save & connect、最下行に状態バッジ。ナビバーはレイヤー 2(2/2)">
 
 `↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket、Host / Port / API key)」から選べ、「Save & connect」で保存して接続し直します。最下行には常に状態バッジを出し、その横に通常は接続状態を、保存結果や入力エラーがある間はそのメッセージを出します。
 
@@ -203,6 +201,16 @@ port=7125
 ```
 
 実機につなぐ場合は `host=<プリンターIP>` に変更します。
+
+### README のスクリーンショット
+
+`docs/images/screen-*.png` は、デスクトップシミュレーターを疑似 Moonraker につないで撮っています。画面を変えたときは、Debug ビルドの後に次のスクリプトで全部撮り直せます(ポート 7125 を空けておいてください)。
+
+```powershell
+./tools/readme_screenshots/capture.ps1
+```
+
+シミュレーターのウィンドウにキー操作を送り、アプリのスクリーンショット機能で保存した画面(320x170)を本体フレームの画像に重ねて保存します。ウィンドウが画面に見えている必要はありません。`D` で切り替えたテーマは終了時に元に戻します。
 
 ## テスト
 
