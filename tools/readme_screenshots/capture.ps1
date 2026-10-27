@@ -143,7 +143,8 @@ try {
         Send-Keys @('6'); Save-Shot 'screen-extruder.png'
         Send-Keys @('7'); Start-Sleep -Seconds 1; Save-Shot 'screen-files.png'
         Send-Keys @('ENTER'); Start-Sleep -Seconds 1; Save-Shot 'screen-files-detail.png'
-        Send-Keys @('ESC', '>'); Save-Shot 'screen-move.png'
+        # Switching to layer 2 keeps the page; its slot 1 (key 4) opens Move.
+        Send-Keys @('ESC', '>', '4'); Save-Shot 'screen-move.png'
         Send-Keys @('5'); Save-Shot 'screen-settings.png'
     }
     finally { Stop-Sim }
