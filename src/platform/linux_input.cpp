@@ -46,6 +46,8 @@ struct EvdevKeypad {
     uint32_t key{0};
     uint16_t pressed_code{0};
     bool shift{false};
+    // The CardputerZero's own keyboard; its Sym layer reuses codes other keyboards mean differently.
+    bool cardputer_keypad{false};
     bool router_event_pending{false};
     uint32_t router_key{0};
     bool router_pressed{false};
@@ -181,7 +183,7 @@ uint32_t map_evdev_letter_or_digit(uint16_t code) {
 // Shift+. ('<' / '>') are kept as layer keys for USB keyboards. On the real CardputerZero
 // (TCA8418 keypad, verified by evdev capture 2026-10-27) Sym is its own key (code 383), not
 // Shift: the driver reports Sym+H as KEY_KPDOT and Sym+J as KEY_ZENKAKUHANKAKU, and those two
-// codes are mapped to the layer keys in map_evdev_key().
+// codes are mapped to the layer keys in map_evdev_key() for that keyboard only.
 uint32_t map_evdev_shifted(uint16_t code) {
     switch (code) {
         case KEY_COMMA:
@@ -207,7 +209,15 @@ bool is_shift(uint16_t code) {
     return code == KEY_LEFTSHIFT || code == KEY_RIGHTSHIFT;
 }
 
-uint32_t map_evdev_key(uint16_t code, bool shift) {
+uint32_t map_evdev_key(uint16_t code, bool shift, bool cardputer_keypad) {
+    if (cardputer_keypad) {
+        if (code == KEY_KPDOT) { // Sym+H
+            return kKeyPrevLayer;
+        }
+        if (code == KEY_ZENKAKUHANKAKU) { // Sym+J
+            return kKeyNextLayer;
+        }
+    }
     if (shift) {
         if (const auto shifted = map_evdev_shifted(code)) {
             return shifted;
@@ -235,10 +245,6 @@ uint32_t map_evdev_key(uint16_t code, bool shift) {
             return kKeyPrintScreen;
         case KEY_HELP:
             return kKeyHelp;
-        case KEY_KPDOT: // CardputerZero Sym+H
-            return kKeyPrevLayer;
-        case KEY_ZENKAKUHANKAKU: // CardputerZero Sym+J
-            return kKeyNextLayer;
         default:
             return map_evdev_letter_or_digit(code);
     }
@@ -284,7 +290,7 @@ void evdev_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
         // A release reports the key its press did, even if Shift changed in between.
         const bool releasing_pressed = input.value == 0 && input.code == keypad->pressed_code;
-        const auto key = releasing_pressed ? keypad->key : map_evdev_key(input.code, keypad->shift);
+        const auto key = releasing_pressed ? keypad->key : map_evdev_key(input.code, keypad->shift, keypad->cardputer_keypad);
         if (!key) {
             continue;
         }
@@ -318,9 +324,19 @@ void evdev_delete_cb(lv_event_t* event) {
     delete keypad;
 }
 
+bool is_cardputer_keypad(int fd) {
+    char name[64] = {};
+    if (ioctl(fd, EVIOCGNAME(sizeof(name) - 1), name) < 0) {
+        return false;
+    }
+    // The TCA8418 keypad driver of the CardputerZero BSP (tca8418_keypad_m5stack).
+    return std::strstr(name, "tca8418") != nullptr;
+}
+
 lv_indev_t* create_keypad_from_fd(int fd) {
     auto* keypad = new EvdevKeypad;
     keypad->fd = fd;
+    keypad->cardputer_keypad = is_cardputer_keypad(fd);
 
     auto* indev = lv_indev_create();
     if (!indev) {
