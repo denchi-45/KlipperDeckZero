@@ -354,25 +354,15 @@ DesktopVirtualKeypad::DesktopVirtualKeypad(lv_display_t* display) {
     lv_indev_set_driver_data(indev_, this);
     lv_indev_set_mode(indev_, LV_INDEV_MODE_EVENT);
     lv_indev_set_display(indev_, display);
+    // No focus group, like the device's evdev keypad: screens take keys from the key router, and
+    // a group would also click its focused button (e.g. a nav bar slot) on Enter.
     platform::attach_key_router(indev_);
-
-    previous_default_group_ = lv_group_get_default();
-    group_ = lv_group_create();
-    lv_indev_set_group(indev_, group_);
-    lv_group_set_default(group_);
 }
 
 DesktopVirtualKeypad::~DesktopVirtualKeypad() {
     if (indev_) {
         lv_indev_delete(indev_);
         indev_ = nullptr;
-    }
-    if (group_) {
-        if (lv_group_get_default() == group_) {
-            lv_group_set_default(previous_default_group_);
-        }
-        lv_group_delete(group_);
-        group_ = nullptr;
     }
 }
 
