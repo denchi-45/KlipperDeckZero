@@ -65,7 +65,6 @@ TEST_CASE("nav layers: start on layer 1 showing Status") {
     NavLayers nav;
     CHECK_EQ(nav.layer(), std::size_t{0});
     CHECK_EQ(nav.page(), AppPage::Status);
-    CHECK_EQ(nav.last_page(1), AppPage::Move);
 }
 
 TEST_CASE("nav layers: a slot shows its page in the current layer") {
@@ -106,36 +105,36 @@ TEST_CASE("nav layers: next and previous wrap around") {
     CHECK_EQ(nav.layer(), std::size_t{0});
 }
 
-TEST_CASE("nav layers: each layer remembers its last page") {
+TEST_CASE("nav layers: switching layers keeps the page") {
     NavLayers nav;
     CHECK(nav.select_slot(2)); // Extruder
     nav.next_layer();
-    CHECK_EQ(nav.page(), AppPage::Move);
-    CHECK(nav.select_slot(1)); // Settings
+    CHECK_EQ(nav.layer(), std::size_t{1});
+    CHECK_EQ(nav.page(), AppPage::Extruder);
     nav.previous_layer();
     CHECK_EQ(nav.page(), AppPage::Extruder);
+
+    // Only a slot of the shown layer changes the page.
     nav.next_layer();
-    CHECK_EQ(nav.page(), AppPage::Settings);
-    CHECK_EQ(nav.last_page(0), AppPage::Extruder);
-    CHECK_EQ(nav.last_page(1), AppPage::Settings);
+    CHECK(nav.select_slot(0));
+    CHECK_EQ(nav.page(), AppPage::Move);
+    nav.next_layer();
+    CHECK_EQ(nav.layer(), std::size_t{0});
+    CHECK_EQ(nav.page(), AppPage::Move);
 }
 
-TEST_CASE("nav layers: showing a page switches to its layer") {
+TEST_CASE("nav layers: showing a page keeps the layer") {
     NavLayers nav;
-    CHECK(nav.select_slot(1)); // Temperature
-    // The S shortcut: Settings from layer 1 switches to layer 2 and makes it its last page.
+    // The S shortcut: Settings (layer 2) opens while layer 1 stays shown.
     CHECK(nav.show_page(AppPage::Settings));
-    CHECK_EQ(nav.layer(), std::size_t{1});
     CHECK_EQ(nav.page(), AppPage::Settings);
-    CHECK_EQ(nav.last_page(1), AppPage::Settings);
-    CHECK_EQ(nav.last_page(0), AppPage::Temperature);
-
-    // ESC: back to Status on layer 1; layer 2 still remembers Settings.
-    CHECK(nav.show_page(AppPage::Status));
     CHECK_EQ(nav.layer(), std::size_t{0});
-    CHECK_EQ(nav.page(), AppPage::Status);
+
+    // ESC: back to Status (layer 1) while layer 2 stays shown.
     nav.next_layer();
-    CHECK_EQ(nav.page(), AppPage::Settings);
+    CHECK(nav.show_page(AppPage::Status));
+    CHECK_EQ(nav.page(), AppPage::Status);
+    CHECK_EQ(nav.layer(), std::size_t{1});
 }
 
 TEST_CASE("nav layers: showing a page outside every layer changes nothing") {
