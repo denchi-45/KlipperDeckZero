@@ -10,6 +10,7 @@
 #include "asset_manager.h"
 #include "help_popup.h"
 #include "logger.h"
+#include "nav_layers.h"
 #include "printer_commands.h"
 #include "linux_input.h"
 #include "printer_service.h"
@@ -258,7 +259,7 @@ private:
             return true;
         }
 
-        // Settings sits in nav layer 2; jumping there switches the layer too.
+        // A shortcut to Settings (nav layer 2); the shown nav layer stays as it is.
         if ((key == 's' || key == 'S') && !long_pressed) {
             view_model_.show_page(model::AppPage::Settings);
             return true;
@@ -272,11 +273,13 @@ private:
         }
 
         const bool is_escape = key == LV_KEY_ESC;
-        // On Status (layer 1, slot 1) its own key 4 doubles as the exit key; elsewhere 4 picks
-        // slot 1 of the shown layer through the nav bar.
+        // On Status with layer 1 shown, key 4 (Status's own slot) doubles as the exit key;
+        // otherwise 4 picks slot 1 of the shown layer through the nav bar.
+        const bool status_slot_shown =
+            model::nav_slot_page(view_model_.current_layer(), 0) == model::AppPage::Status;
         const bool is_home_exit_key =
             key == '4' &&
-            ((!long_pressed && view_model_.current_page() == model::AppPage::Status) ||
+            ((!long_pressed && view_model_.current_page() == model::AppPage::Status && status_slot_shown) ||
              (long_pressed && exit_key_pressed_ == key));
         if (!is_escape && !is_home_exit_key) {
             return false;

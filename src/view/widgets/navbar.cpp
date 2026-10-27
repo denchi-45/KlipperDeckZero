@@ -20,7 +20,12 @@ namespace {
 
 static_assert(platform::kNavKeyCount == model::kNavSlotCount, "one nav key per slot");
 
-constexpr int32_t kSlotGap = 12;
+// Each slot sits right above its key: on the CardputerZero the keys 4..8 are centered at these
+// screen x positions (key pitch 57 px; the screen is 320 px wide).
+constexpr int32_t kFirstSlotCenterX = 49;
+constexpr int32_t kSlotPitch = 57;
+constexpr int32_t kSlotWidth = 32;
+constexpr int32_t kSlotHeight = 24;
 constexpr int32_t kLayerLabelInset = 8;
 
 const char* page_icon(model::AppPage page) {
@@ -79,16 +84,12 @@ void NavBar::build() {
     lv_obj_set_size(core_obj_, LV_PCT(100), kNavBarHeight);
     lv_obj_align(core_obj_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_clear_flag(core_obj_, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_flex_flow(core_obj_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(core_obj_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(core_obj_, kSlotGap, 0);
     reactive::bind_theme(core_obj_, view_model_.dark_mode_subject(), reactive::ThemeRole::Bar);
 
     create_icon_buttons();
 
-    // "1/2" at the right end, outside the centered slots.
+    // "1/2" at the right end, right of the last slot.
     layer_label_ = lv_label_create(core_obj_);
-    lv_obj_add_flag(layer_label_, LV_OBJ_FLAG_FLOATING);
     auto* layer_font = assets_.load_standard_font(11);
     lv_obj_set_style_text_font(layer_label_, layer_font ? layer_font : &lv_font_montserrat_12, 0);
     lv_obj_align(layer_label_, LV_ALIGN_RIGHT_MID, -kLayerLabelInset, 0);
@@ -105,8 +106,8 @@ void NavBar::create_icon_buttons() {
     for (size_t i = 0; i < icon_buttons_.size(); ++i) {
         icon_buttons_[i] = std::make_unique<IconButton>(core_obj_,
                                                         view_model_,
-                                                        32,
-                                                        24,
+                                                        kSlotWidth,
+                                                        kSlotHeight,
                                                         "",
                                                         icon_font_ ? icon_font_ : &lv_font_montserrat_14,
                                                         view::palette(false).text,
@@ -115,6 +116,8 @@ void NavBar::create_icon_buttons() {
                                                         &view_model_,
                                                         true);
         icon_buttons_[i]->build();
+        const auto center_x = kFirstSlotCenterX + static_cast<int32_t>(i) * kSlotPitch;
+        lv_obj_align(icon_buttons_[i]->root(), LV_ALIGN_LEFT_MID, center_x - kSlotWidth / 2, 0);
         lv_obj_set_user_data(icon_buttons_[i]->root(), reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
         platform::register_nav_button(i, icon_buttons_[i]->root());
     }

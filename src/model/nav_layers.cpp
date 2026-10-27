@@ -4,6 +4,8 @@
 
 #include "nav_layers.h"
 
+#include <array>
+
 namespace model {
 namespace {
 
@@ -36,23 +38,12 @@ bool find_nav_slot(AppPage page, std::size_t& layer, std::size_t& slot) {
     return false;
 }
 
-NavLayers::NavLayers() {
-    // Each layer starts on its first slot.
-    for (std::size_t l = 0; l < kNavLayerCount; ++l) {
-        last_pages_[l] = *kLayers[l][0];
-    }
-}
-
 std::size_t NavLayers::layer() const {
     return layer_;
 }
 
 AppPage NavLayers::page() const {
-    return last_pages_[layer_];
-}
-
-AppPage NavLayers::last_page(std::size_t layer) const {
-    return layer < kNavLayerCount ? last_pages_[layer] : page();
+    return page_;
 }
 
 bool NavLayers::show_page(AppPage page) {
@@ -61,8 +52,7 @@ bool NavLayers::show_page(AppPage page) {
     if (!find_nav_slot(page, layer, slot)) {
         return false;
     }
-    layer_ = layer;
-    last_pages_[layer] = page;
+    page_ = page;
     return true;
 }
 
@@ -71,7 +61,7 @@ bool NavLayers::select_slot(std::size_t slot) {
     if (!page) {
         return false;
     }
-    last_pages_[layer_] = *page;
+    page_ = *page;
     return true;
 }
 
