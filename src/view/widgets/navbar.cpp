@@ -12,6 +12,7 @@
 #include "theme.h"
 #include "ui_const.h"
 
+#include <array>
 #include <cstdint>
 #include <cstdio>
 
@@ -20,10 +21,10 @@ namespace {
 
 static_assert(platform::kNavKeyCount == model::kNavSlotCount, "one nav key per slot");
 
-// Each slot sits right above its key: on the CardputerZero the keys 4..8 are centered at these
-// screen x positions (key pitch 57 px; the screen is 320 px wide).
-constexpr int32_t kFirstSlotCenterX = 49;
-constexpr int32_t kSlotPitch = 57;
+// Each slot sits right above its key: the screen x of the centers of keys 4..8, measured on the
+// device image (assets/images/cp0-light.png) at screen scale. The key pitch is 56.25 px; the
+// screen is 320 px wide.
+constexpr std::array<int32_t, model::kNavSlotCount> kSlotCenterX = {47, 104, 160, 216, 272};
 constexpr int32_t kSlotWidth = 32;
 constexpr int32_t kSlotHeight = 24;
 constexpr int32_t kLayerLabelInset = 8;
@@ -116,8 +117,7 @@ void NavBar::create_icon_buttons() {
                                                         &view_model_,
                                                         true);
         icon_buttons_[i]->build();
-        const auto center_x = kFirstSlotCenterX + static_cast<int32_t>(i) * kSlotPitch;
-        lv_obj_align(icon_buttons_[i]->root(), LV_ALIGN_LEFT_MID, center_x - kSlotWidth / 2, 0);
+        lv_obj_align(icon_buttons_[i]->root(), LV_ALIGN_LEFT_MID, kSlotCenterX[i] - kSlotWidth / 2, 0);
         lv_obj_set_user_data(icon_buttons_[i]->root(), reinterpret_cast<void*>(static_cast<uintptr_t>(i)));
         platform::register_nav_button(i, icon_buttons_[i]->root());
     }
