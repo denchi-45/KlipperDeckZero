@@ -58,7 +58,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 | `ESC` | ホーム(状態表示)へ戻る |
 | `4` / `ESC` 長押し | 終了(ホームで押したときのみ) |
 | `D` | ライト / ダーク切替 |
-| `R` / `F` | Klipper 再起動(`RESTART`) / MCU 再起動(`FIRMWARE_RESTART`)。状態表示で 3 秒以内に 2 回押すと実行。印刷中・一時停止中は実行しない |
+| `R` / `F` | Klipper 再起動(`RESTART`) / MCU 再起動(`FIRMWARE_RESTART`)。状態表示で 3 秒以内に 2 回押すと実行。Klipper が ready で印刷中・一時停止中のときは実行しない |
 | `Fn`+`H` | ヘルプ |
 | `Fn`+`J` | スクリーンショット(`~/Pictures/Screenshots` に PNG 保存。シミュレーターは `PrintScreen` キー) |
 
@@ -72,9 +72,9 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 <img src="docs/images/screen-status-ready.png" width="640" alt="待機中の状態表示。READY バッジと No active print、ノズル・ベッドの目標温度は off">
 
-状態バッジ・ファイル名・進捗(%)、経過 / 残り時間・レイヤー、ノズル・ベッドの現在温度と目標温度・ヒーター出力、最下行に Speed / Flow / Fan を出します。印刷していないときは「No active print」です。印刷中・一時停止中は、ファイルのサムネイルを上の 3 行の左に出します(デスクトップのシミュレーターでは疑似 Moonraker が HTTP を持たないため出ません)。
+状態バッジ・ファイル名・進捗(%)、経過 / 残り時間・レイヤー、ノズル・ベッドの現在温度と目標温度・ヒーター出力、最下行に Speed / Flow / Fan を出します。印刷していないときは「No active print」です。印刷中・一時停止中は、ファイルのサムネイルを上の 3 行の左に出します(デスクトップのシミュレーターでは、疑似 Moonraker がファイルのメタデータで `thumbnails` を空で返すため出ません)。
 
-この画面で `R` / `F` を 3 秒以内に 2 回押すと、Klipper / MCU を再起動します(印刷中・一時停止中は実行しません)。
+この画面で `R` / `F` を 3 秒以内に 2 回押すと、Klipper / MCU を再起動します。Klipper が ready で印刷中・一時停止中のときは実行しません。Klipper の起動中・切断中や、エラー(`error`・`shutdown`)の間は、印刷状態が古いままでも再起動できるので、Klipper が止まった後の復旧に使えます。
 
 #### 温度設定 `5`
 
@@ -106,7 +106,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 プリンターの G-code ファイルを新しい順に並べます(画面を開くたびに取り直します)。`↑`/`↓` で選び(`←`/`→` で 5 件ずつ移動)、`Enter` で詳細(サムネイル・予想時間・フィラメント量・レイヤー高さ・初層温度)を表示します。
 
-詳細でもう一度 `Enter` を押すと印刷を開始し、状態表示に戻ります。`ESC` で一覧に戻ります。印刷中・一時停止中は開始しません。
+詳細でもう一度 `Enter` を押すと印刷を開始し、開始できたら状態表示に戻ります。開始に失敗したときはトーストに理由を出し、Files 画面のままです。`ESC` で一覧に戻ります。印刷中・一時停止中は開始しません。
 
 #### 印刷制御 `8`
 
@@ -139,7 +139,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 <img src="docs/images/screen-settings.png" width="640" alt="接続設定画面。Connect to Network、Host・Port・API key、Save & connect、最下行に状態バッジ">
 
-`↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket、Host / Port / API key)」から選べ、「Save & connect」で保存して接続し直します。最下行には状態バッジと接続状態を出します。
+`↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket、Host / Port / API key)」から選べ、「Save & connect」で保存して接続し直します。最下行には常に状態バッジを出し、その横に通常は接続状態を、保存結果や入力エラーがある間はそのメッセージを出します。
 
 ## ロードマップ
 
