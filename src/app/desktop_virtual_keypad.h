@@ -42,8 +42,6 @@ private:
     void clear_one_shot_modifiers();
 
     lv_indev_t* indev_{nullptr};
-    lv_group_t* group_{nullptr};
-    lv_group_t* previous_default_group_{nullptr};
     uint32_t pending_key_{0};
     bool pending_pressed_{false};
     bool fn_active_{false};
