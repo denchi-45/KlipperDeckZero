@@ -139,6 +139,9 @@ try {
     try {
         Start-Sim
         Save-Shot 'screen-status-ready.png'
+        # Layer 2 shown over the same page: only the nav bar changes.
+        Send-Keys @('>'); Save-Shot 'screen-status-layer2.png'
+        Send-Keys @('<')
         Send-Keys @('5'); Save-Shot 'screen-temperature.png'
         Send-Keys @('6'); Save-Shot 'screen-extruder.png'
         Send-Keys @('7'); Start-Sleep -Seconds 1; Save-Shot 'screen-files.png'
