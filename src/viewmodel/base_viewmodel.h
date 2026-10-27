@@ -12,6 +12,8 @@
 
 #include "lvgl.h"
 
+#include <cstddef>
+
 namespace moonraker {
 class MoonrakerSession;
 }
@@ -29,6 +31,7 @@ public:
     lv_subject_t* title_subject();
     lv_subject_t* dark_mode_subject();
     lv_subject_t* current_page_subject();
+    lv_subject_t* current_layer_subject(); // nav bar layer index
     lv_subject_t* quit_requested_subject();
 
     bool is_dark_mode() const;
@@ -36,7 +39,15 @@ public:
     void toggle_dark_mode();
 
     model::AppPage current_page() const;
+    // Also switches the nav bar to the page's layer.
     void show_page(model::AppPage page);
+
+    // Nav bar layers (see model::NavLayers).
+    std::size_t current_layer() const;
+    // The page of a slot of the current layer; nothing happens on an empty slot.
+    void select_nav_slot(std::size_t slot);
+    void next_nav_layer();
+    void previous_nav_layer();
     void request_quit();
 
     // ---- Printer state (published from the Moonraker session) ----
@@ -76,6 +87,7 @@ private:
     reactive::StringSubject<32> title_subject_;
     reactive::BoolSubject dark_mode_subject_;
     reactive::IntSubject current_page_subject_;
+    reactive::IntSubject current_layer_subject_;
     reactive::BoolSubject quit_requested_subject_;
 
     reactive::StringSubject<16> printer_badge_text_;

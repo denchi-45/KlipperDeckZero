@@ -169,6 +169,16 @@ bool SettingsScreen::handle_key(uint32_t key, bool long_pressed) {
         return form_.editing();
     }
 
+    if (form_.editing()) {
+        // The layer keys arrive as '<' / '>' from a USB keyboard; while typing they are characters again.
+        if (key == platform::kKeyPrevLayer) {
+            key = '<';
+        }
+        else if (key == platform::kKeyNextLayer) {
+            key = '>';
+        }
+    }
+
     app::SettingsInput input{};
     if (!to_settings_input(key, input)) {
         return form_.editing();

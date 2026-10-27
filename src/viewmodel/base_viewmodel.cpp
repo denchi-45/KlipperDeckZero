@@ -56,6 +56,7 @@ BaseViewModel::BaseViewModel()
     : title_subject_(model::page_title(model_.current_page())),
       dark_mode_subject_(model_.dark_mode()),
       current_page_subject_(page_to_int(model_.current_page())),
+      current_layer_subject_(static_cast<int32_t>(model_.current_layer())),
       quit_requested_subject_(false),
       printer_badge_text_("OFFLINE"),
       printer_badge_tone_(tone_to_int(format::Tone::Neutral)),
@@ -98,6 +99,10 @@ lv_subject_t* BaseViewModel::current_page_subject() {
     return current_page_subject_.native();
 }
 
+lv_subject_t* BaseViewModel::current_layer_subject() {
+    return current_layer_subject_.native();
+}
+
 lv_subject_t* BaseViewModel::quit_requested_subject() {
     return quit_requested_subject_.native();
 }
@@ -121,7 +126,28 @@ model::AppPage BaseViewModel::current_page() const {
 }
 
 void BaseViewModel::show_page(model::AppPage page) {
-    model_.set_current_page(page);
+    if (model_.nav().show_page(page)) {
+        publish_all();
+    }
+}
+
+std::size_t BaseViewModel::current_layer() const {
+    return model_.current_layer();
+}
+
+void BaseViewModel::select_nav_slot(std::size_t slot) {
+    if (model_.nav().select_slot(slot)) {
+        publish_all();
+    }
+}
+
+void BaseViewModel::next_nav_layer() {
+    model_.nav().next_layer();
+    publish_all();
+}
+
+void BaseViewModel::previous_nav_layer() {
+    model_.nav().previous_layer();
     publish_all();
 }
 
@@ -291,6 +317,7 @@ void BaseViewModel::publish_all() {
     title_subject_.set(model::page_title(model_.current_page()));
     dark_mode_subject_.set(model_.dark_mode());
     current_page_subject_.set(page_to_int(model_.current_page()));
+    current_layer_subject_.set(static_cast<int32_t>(model_.current_layer()));
 }
 
 } // namespace viewmodel

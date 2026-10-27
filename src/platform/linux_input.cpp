@@ -23,7 +23,6 @@ namespace platform {
 namespace {
 
 std::array<lv_obj_t*, kNavKeyCount> nav_buttons{};
-bool nav_shortcut_mode = false;
 // The active hold belongs to the input device that pressed it; other devices cannot release it.
 lv_indev_t* hold_owner = nullptr;
 uint32_t pressed_key = 0;
@@ -47,6 +46,8 @@ struct EvdevKeypad {
     uint32_t key{0};
     uint16_t pressed_code{0};
     bool shift{false};
+    // The CardputerZero's own keyboard; its Sym layer reuses codes other keyboards mean differently.
+    bool cardputer_keypad{false};
     bool router_event_pending{false};
     uint32_t router_key{0};
     bool router_pressed{false};
@@ -54,40 +55,7 @@ struct EvdevKeypad {
 #endif
 
 size_t nav_key_to_index(uint32_t key) {
-    if (nav_shortcut_mode) {
-        switch (key) {
-            case LV_KEY_ESC:
-                return 4;
-            case 'z':
-            case 'Z':
-            case LV_KEY_LEFT:
-                return 1;
-            case 'c':
-            case 'C':
-            case LV_KEY_RIGHT:
-                return 3;
-            default:
-                return kNavKeyCount;
-        }
-    }
-
-    switch (key) {
-        case '4':
-        case LV_KEY_ESC:
-            return 0;
-        case '5':
-            return 1;
-        case '6':
-            return 2;
-        case '7':
-            return 3;
-        case '8':
-            return 4;
-        case '9':
-            return 5;
-        default:
-            return kNavKeyCount;
-    }
+    return key >= '4' && key < '4' + kNavKeyCount ? key - '4' : kNavKeyCount;
 }
 
 void dispatch_nav_key(uint32_t key) {
@@ -211,9 +179,17 @@ uint32_t map_evdev_letter_or_digit(uint16_t code) {
     return 0;
 }
 
-// Characters needed for host names and file paths that only exist with Shift held.
+// Characters needed for host names and file paths that only exist with Shift held. Shift+, and
+// Shift+. ('<' / '>') are kept as layer keys for USB keyboards. On the real CardputerZero
+// (TCA8418 keypad, verified by evdev capture 2026-10-27) Sym is its own key (code 383), not
+// Shift: the driver reports Sym+H as KEY_KPDOT and Sym+J as KEY_ZENKAKUHANKAKU, and those two
+// codes are mapped to the layer keys in map_evdev_key() for that keyboard only.
 uint32_t map_evdev_shifted(uint16_t code) {
     switch (code) {
+        case KEY_COMMA:
+            return kKeyPrevLayer;
+        case KEY_DOT:
+            return kKeyNextLayer;
         case KEY_MINUS:
             return '_';
         case KEY_SEMICOLON:
@@ -233,7 +209,15 @@ bool is_shift(uint16_t code) {
     return code == KEY_LEFTSHIFT || code == KEY_RIGHTSHIFT;
 }
 
-uint32_t map_evdev_key(uint16_t code, bool shift) {
+uint32_t map_evdev_key(uint16_t code, bool shift, bool cardputer_keypad) {
+    if (cardputer_keypad) {
+        if (code == KEY_KPDOT) { // Sym+H
+            return kKeyPrevLayer;
+        }
+        if (code == KEY_ZENKAKUHANKAKU) { // Sym+J
+            return kKeyNextLayer;
+        }
+    }
     if (shift) {
         if (const auto shifted = map_evdev_shifted(code)) {
             return shifted;
@@ -257,20 +241,6 @@ uint32_t map_evdev_key(uint16_t code, bool shift) {
             return LV_KEY_LEFT;
         case KEY_RIGHT:
             return LV_KEY_RIGHT;
-        case KEY_Z:
-            return 'z';
-        case KEY_C:
-            return 'c';
-        case KEY_4:
-            return '4';
-        case KEY_5:
-            return '5';
-        case KEY_6:
-            return '6';
-        case KEY_7:
-            return '7';
-        case KEY_8:
-            return '8';
         case KEY_SYSRQ:
             return kKeyPrintScreen;
         case KEY_HELP:
@@ -320,7 +290,7 @@ void evdev_read_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
         // A release reports the key its press did, even if Shift changed in between.
         const bool releasing_pressed = input.value == 0 && input.code == keypad->pressed_code;
-        const auto key = releasing_pressed ? keypad->key : map_evdev_key(input.code, keypad->shift);
+        const auto key = releasing_pressed ? keypad->key : map_evdev_key(input.code, keypad->shift, keypad->cardputer_keypad);
         if (!key) {
             continue;
         }
@@ -354,9 +324,19 @@ void evdev_delete_cb(lv_event_t* event) {
     delete keypad;
 }
 
+bool is_cardputer_keypad(int fd) {
+    char name[64] = {};
+    if (ioctl(fd, EVIOCGNAME(sizeof(name) - 1), name) < 0) {
+        return false;
+    }
+    // The TCA8418 keypad driver of the CardputerZero BSP (tca8418_keypad_m5stack).
+    return std::strstr(name, "tca8418") != nullptr;
+}
+
 lv_indev_t* create_keypad_from_fd(int fd) {
     auto* keypad = new EvdevKeypad;
     keypad->fd = fd;
+    keypad->cardputer_keypad = is_cardputer_keypad(fd);
 
     auto* indev = lv_indev_create();
     if (!indev) {
@@ -444,10 +424,6 @@ void attach_key_router(lv_indev_t* indev) {
     lv_indev_add_event_cb(indev, key_event_cb, LV_EVENT_KEY, nullptr);
 }
 
-void set_nav_shortcut_mode(bool enabled) {
-    nav_shortcut_mode = enabled;
-}
-
 void register_nav_button(size_t index, lv_obj_t* button) {
     if (index >= nav_buttons.size()) {
         return;
@@ -519,6 +495,10 @@ const char* describe_key(uint32_t key) {
             return "PrintScreen";
         case kKeyHelp:
             return "Help";
+        case kKeyPrevLayer:
+            return "PrevLayer";
+        case kKeyNextLayer:
+            return "NextLayer";
         default:
             break;
     }

@@ -6,26 +6,12 @@
 
 #pragma once
 
+#include "app_page.h"
+#include "nav_layers.h"
+
 #include <cstddef>
 
 namespace model {
-
-// One page per navigation key (4..9), then pages reached by other shortcuts. Status is the home
-// page.
-enum class AppPage {
-    Status      = 0,
-    Temperature = 1,
-    Extruder    = 2,
-    Files       = 3,
-    Control     = 4,
-    Move        = 5,
-    Settings    = 6, // S key; not in the nav bar
-};
-
-// Pages shown in the nav bar: AppPage values below this.
-constexpr std::size_t kNavPageCount = 6;
-
-const char* page_title(AppPage page);
 
 class BaseModel {
 public:
@@ -34,11 +20,13 @@ public:
     void toggle_dark_mode();
 
     AppPage current_page() const;
-    void set_current_page(AppPage page);
+    std::size_t current_layer() const;
+    const NavLayers& nav() const;
+    NavLayers& nav();
 
 private:
     bool dark_mode_ = false;
-    AppPage current_page_ = AppPage::Status;
+    NavLayers nav_;
 };
 
 } // namespace model

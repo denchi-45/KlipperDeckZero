@@ -23,8 +23,8 @@ struct HelpRow {
 
 constexpr HelpRow kHomeRows[] = {
     {"HOLD ESC / 4", "Exit"},
-    {"5 / 6", "Temperature / Extruder"},
-    {"7 / 8 / 9", "Files / Control / Move"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
     {"S", "Connection settings"},
     {"D", "Light / dark theme"},
     {"R / F  x2", "Restart Klipper / MCU"},
@@ -32,7 +32,8 @@ constexpr HelpRow kHomeRows[] = {
 
 constexpr HelpRow kPageRows[] = {
     {"ESC", "Back to status"},
-    {"4 - 9", "Switch page"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
     {"D", "Light / dark theme"},
 };
 
@@ -41,7 +42,8 @@ constexpr HelpRow kTemperatureRows[] = {
     {"LEFT / RIGHT", "-/+ 5, or pick a preset"},
     {"ENTER", "Type a target / apply"},
     {"ESC", "Cancel edit / back"},
-    {"4 - 9", "Switch page"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
 };
 
 constexpr HelpRow kExtruderRows[] = {
@@ -49,7 +51,8 @@ constexpr HelpRow kExtruderRows[] = {
     {"LEFT / RIGHT", "Change the selection"},
     {"ENTER", "Extrude or retract"},
     {"ESC", "Back to status"},
-    {"4 - 9", "Switch page"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
 };
 
 constexpr HelpRow kFilesRows[] = {
@@ -57,16 +60,17 @@ constexpr HelpRow kFilesRows[] = {
     {"LEFT / RIGHT", "Previous / next page"},
     {"ENTER", "Details, then start print"},
     {"ESC", "Back to list / status"},
-    {"4 - 9", "Switch page"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
 };
 
 constexpr HelpRow kControlRows[] = {
     {"LEFT / RIGHT", "Pause / Cancel / E-Stop"},
-    {"ENTER", "Pause or resume"},
-    {"ENTER x2", "Cancel the print"},
+    {"ENTER / x2", "Pause, resume / cancel"},
     {"HOLD ENTER", "Emergency stop"},
     {"ESC", "Back to status"},
-    {"4 - 9", "Switch page"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
 };
 
 constexpr HelpRow kMoveRows[] = {
@@ -74,7 +78,8 @@ constexpr HelpRow kMoveRows[] = {
     {"LEFT / RIGHT", "Change the axis or step"},
     {"ENTER", "Jog, home, or motors off"},
     {"ESC", "Back to status"},
-    {"4 - 9", "Switch page"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
 };
 
 constexpr HelpRow kSettingsRows[] = {
@@ -82,6 +87,8 @@ constexpr HelpRow kSettingsRows[] = {
     {"ENTER", "Edit / change / save"},
     {"LEFT / RIGHT", "Change a choice"},
     {"ESC", "Cancel edit / back"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
 };
 
 struct HelpRows {
@@ -91,6 +98,7 @@ struct HelpRows {
 
 template <std::size_t N>
 constexpr HelpRows rows_of(const HelpRow (&rows)[N]) {
+    static_assert(N <= 6, "the popup has 6 rows");
     return {rows, N};
 }
 
@@ -195,7 +203,7 @@ void HelpPopup::build() {
     }
 
     footer_ = lv_label_create(panel_);
-    lv_label_set_text(footer_, "HELP / ESC  Close   PRSC  Screenshot");
+    lv_label_set_text(footer_, "FN+H / ESC  Close   FN+J  Screenshot");
     lv_label_set_long_mode(footer_, LV_LABEL_LONG_CLIP);
     auto* footer_font = assets_.load_standard_font(10);
     lv_obj_set_style_text_font(footer_, footer_font ? footer_font : &lv_font_montserrat_10, 0);
