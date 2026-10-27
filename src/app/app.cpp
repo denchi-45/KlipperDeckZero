@@ -249,6 +249,8 @@ private:
 
         if (key == platform::kKeyPrevLayer || key == platform::kKeyNextLayer) {
             if (!long_pressed) {
+                // A layer switch changes what key 4 does, so a pending exit hold no longer counts.
+                cancel_exit_hold();
                 if (key == platform::kKeyPrevLayer) {
                     view_model_.previous_nav_layer();
                 }
@@ -278,9 +280,8 @@ private:
         const bool status_slot_shown =
             model::nav_slot_page(view_model_.current_layer(), 0) == model::AppPage::Status;
         const bool is_home_exit_key =
-            key == '4' &&
-            ((!long_pressed && view_model_.current_page() == model::AppPage::Status && status_slot_shown) ||
-             (long_pressed && exit_key_pressed_ == key));
+            key == '4' && view_model_.current_page() == model::AppPage::Status && status_slot_shown &&
+            (!long_pressed || exit_key_pressed_ == key);
         if (!is_escape && !is_home_exit_key) {
             return false;
         }
@@ -302,6 +303,14 @@ private:
             }
         }
         return true;
+    }
+
+    void cancel_exit_hold() {
+        if (exit_armed_) {
+            toast_->hide();
+        }
+        exit_key_pressed_ = 0;
+        exit_armed_ = false;
     }
 
     void handle_release(uint32_t key) {
