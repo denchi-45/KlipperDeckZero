@@ -26,7 +26,7 @@ system `libfmt10`.
 |---|---|---|
 | [Phosphor Icons](https://phosphoricons.com/) (`assets/fonts/Phosphor-Fill.ttf`) | MIT | [assets/fonts/LICENSE.txt](assets/fonts/LICENSE.txt) |
 | [Kenney Input Prompts](https://kenney.nl/) (`assets/fonts/kenney_*.ttf`, `kenny_*.ttf`) | CC0-1.0 | [assets/fonts/LICENSE.txt](assets/fonts/LICENSE.txt) |
-| `assets/audio/click.wav`, `assets/images/cp0-*.png` (from CardputerZero/Template) | MIT | [LICENSE](LICENSE) |
+| `assets/audio/click.wav`, `assets/images/cp0-*.png`, `assets/images/klipperdeck.png`, `klipperdeck_100.png`, `klipperdeck_80.png` (from CardputerZero/Template) | MIT | [LICENSE](LICENSE) |
 | App icon (`assets/images/klipperdeck-control*.png`) | MIT, same as this project | [LICENSE](LICENSE) |
 
 ## Libraries used from the system

@@ -76,9 +76,9 @@ install(FILES
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/"
     DESTINATION "${CMAKE_INSTALL_DOCDIR}/licenses"
 )
+# Same relative path as in the repository, so the links in THIRD_PARTY_NOTICES.md work.
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/LICENSE.txt"
-    DESTINATION "${CMAKE_INSTALL_DOCDIR}"
-    RENAME "third-party-assets-license.txt"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/assets/fonts"
 )
 
 set(CPACK_GENERATOR "DEB")
