@@ -1,5 +1,6 @@
 #
 # SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+# SPDX-FileCopyrightText: 2026 denchi-45
 #
 # SPDX-License-Identifier: MIT
 # Packaging and install layout for CardputerZero Debian builds.
@@ -66,8 +67,14 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+        "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
     DESTINATION "${CMAKE_INSTALL_DOCDIR}"
+)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/licenses"
 )
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/LICENSE.txt"
     DESTINATION "${CMAKE_INSTALL_DOCDIR}"
@@ -83,7 +90,7 @@ set(CPACK_PACKAGE_CONTACT "${APP_MAINTAINER}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${APP_PACKAGE_DESCRIPTION}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_FILE_NAME "${APP_DISPLAY_NAME}_${PROJECT_VERSION}_${APP_DEBIAN_REVISION}_${APP_DEBIAN_ARCHITECTURE}")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/LICENSE.txt")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 
 # The Debian package name is the project name, which app-builder.json package_name must match.
 if(NOT PROJECT_NAME MATCHES "^[a-z0-9][a-z0-9+.-]+$")
