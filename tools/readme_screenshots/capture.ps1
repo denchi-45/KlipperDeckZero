@@ -6,9 +6,11 @@
 # The simulator window does not need to be visible: keys are posted to it, each shot is the
 # app's own screenshot (PrintScreen -> LVGL snapshot, 320x170) composited onto the device shell
 # at (155, 21) the way DesktopSimulatorFrame renders it. Port 7125 must be free.
+# The shots marked -Store are also saved unframed (320x170) to screenshot/ for app-builder.json.
 param(
     [string]$BinDir = '',
-    [string]$OutDir = ''
+    [string]$OutDir = '',
+    [string]$StoreDir = ''
 )
 $ErrorActionPreference = 'Stop'
 
@@ -40,6 +42,7 @@ public static class KdzSimWindow {
 $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (!$BinDir) { $BinDir = Join-Path $Repo 'build\mingw64\Debug' }
 if (!$OutDir) { $OutDir = Join-Path $Repo 'docs\images' }
+if (!$StoreDir) { $StoreDir = Join-Path $Repo 'screenshot' }
 $SimHome = Join-Path $env:TEMP 'kdz-readme-screenshots'
 $ShotDir = Join-Path $SimHome 'Pictures\Screenshots'
 $ConfigFile = Join-Path $Repo 'config\klipper-deck-zero.conf'
@@ -109,7 +112,7 @@ function New-Shell([bool]$Dark) {
     return $shell
 }
 
-function Save-Shot([string]$Name, [switch]$Dark) {
+function Save-Shot([string]$Name, [switch]$Dark, [switch]$Store) {
     $before = @(Get-ChildItem $ShotDir -Filter '*.png' | ForEach-Object Name)
     Send-VirtualKey 0x2C 0x37 $true  # PrintScreen
     $new = $null
@@ -129,6 +132,12 @@ function Save-Shot([string]$Name, [switch]$Dark) {
     $shell.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
     $shell.Dispose(); $screen.Dispose()
     Write-Host "saved $path"
+    if ($Store) {
+        New-Item -ItemType Directory -Force $StoreDir | Out-Null
+        $storePath = Join-Path $StoreDir $Name
+        Copy-Item $new.FullName $storePath -Force
+        Write-Host "saved $storePath"
+    }
     # Let the "Screenshot saved" toast go away before the next shot.
     Start-Sleep -Seconds 3
 }
@@ -142,12 +151,12 @@ try {
         # Layer 2 shown over the same page: only the nav bar changes.
         Send-Keys @('>'); Save-Shot 'screen-status-layer2.png'
         Send-Keys @('<')
-        Send-Keys @('5'); Save-Shot 'screen-temperature.png'
+        Send-Keys @('5'); Save-Shot 'screen-temperature.png' -Store
         Send-Keys @('6'); Save-Shot 'screen-extruder.png'
         Send-Keys @('7'); Start-Sleep -Seconds 1; Save-Shot 'screen-files.png'
-        Send-Keys @('ENTER'); Start-Sleep -Seconds 1; Save-Shot 'screen-files-detail.png'
+        Send-Keys @('ENTER'); Start-Sleep -Seconds 1; Save-Shot 'screen-files-detail.png' -Store
         # Switching to layer 2 keeps the page; its slot 1 (key 4) opens Move.
-        Send-Keys @('ESC', '>', '4'); Save-Shot 'screen-move.png'
+        Send-Keys @('ESC', '>', '4'); Save-Shot 'screen-move.png' -Store
         Send-Keys @('5'); Save-Shot 'screen-settings.png'
     }
     finally { Stop-Sim }
@@ -157,9 +166,9 @@ try {
         Start-Sim -Print '3DBenchy_PLA_0.2mm.gcode'
         # Wait for the heaters and a few layers.
         Start-Sleep -Seconds 14
-        Save-Shot 'screen-status-printing.png'
-        Send-Keys @('8'); Save-Shot 'screen-control.png'
-        Send-Keys @('4', 'd'); Start-Sleep -Seconds 1; Save-Shot 'screen-status-printing-dark.png' -Dark
+        Save-Shot 'screen-status-printing.png' -Store
+        Send-Keys @('8'); Save-Shot 'screen-control.png' -Store
+        Send-Keys @('4', 'd'); Start-Sleep -Seconds 1; Save-Shot 'screen-status-printing-dark.png' -Dark -Store
     }
     finally { Stop-Sim }
 }
