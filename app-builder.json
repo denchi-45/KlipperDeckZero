@@ -12,7 +12,7 @@
       "screenshot/app-simulator-dark-darwin.png",
       "screenshot/app-simulator-light-darwin.png"
     ],
-    "icon": "assets/images/klipperdeck.png",
+    "icon": "assets/images/klipperdeck-control.png",
     "license": "TODO: an SPDX id, e.g. MIT",
     "source_repo": "https://github.com/denchi-45/KlipperDeckZero",
     "author": { "github": "denchi-45", "display_name": "TODO: Your Name" },
