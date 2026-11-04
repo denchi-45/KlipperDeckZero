@@ -59,6 +59,7 @@ std::unique_ptr<Transport> create_unix_socket_transport(const std::string& socke
 
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -67,6 +68,7 @@ namespace {
 
 constexpr char kEtx = '\x03';
 constexpr int kPollIntervalMs = 200;
+constexpr int kSendTimeoutSec = 3;
 
 class UnixSocketTransport final : public Transport {
 public:
@@ -156,6 +158,10 @@ private:
             emit(TransportEventType::Closed, reason);
             return;
         }
+
+        // Bound send() so a peer that stops reading cannot block the UI thread forever.
+        timeval send_timeout{kSendTimeoutSec, 0};
+        ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
 
         {
             std::lock_guard<std::mutex> lock(fd_mutex_);

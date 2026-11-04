@@ -56,8 +56,8 @@ std::string describe(const A& actual, const B& expected) {
 
 #define CHECK_EQ(actual, expected)                                                   \
     do {                                                                             \
-        const auto& kdz_a = (actual);                                                \
-        const auto& kdz_e = (expected);                                              \
+        const auto kdz_a = (actual);                                                 \
+        const auto kdz_e = (expected);                                               \
         if (!(kdz_a == kdz_e)) {                                                     \
             ::kdz_test::report_failure(__FILE__, __LINE__,                           \
                 #actual " == " #expected " (" + ::kdz_test::describe(kdz_a, kdz_e) + ")"); \

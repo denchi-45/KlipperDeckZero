@@ -81,8 +81,22 @@ TEST_CASE("jsonrpc: error response") {
                .dump());
     f.client.poll(f.now);
     CHECK(!received.ok);
+    CHECK(!received.local_error);
     CHECK_EQ(received.error.code, 400);
     CHECK_EQ(received.error.message, std::string("Extrude below minimum temp"));
+}
+
+TEST_CASE("jsonrpc: server error reusing a local code is not marked local") {
+    Fixture f;
+    f.connect();
+    RpcResponse received;
+    f.client.call("server.info", [&](const RpcResponse& r) { received = r; });
+    reply_error(f.shared, f.shared.sent[0], moonraker::kErrorTimeout, "server-side timeout");
+    f.client.poll(f.now);
+    CHECK(!received.ok);
+    CHECK(!received.local_error);
+    CHECK_EQ(received.error.code, moonraker::kErrorTimeout);
+    CHECK_EQ(received.error.message, std::string("server-side timeout"));
 }
 
 TEST_CASE("jsonrpc: timeout") {
@@ -100,6 +114,8 @@ TEST_CASE("jsonrpc: timeout") {
     CHECK_EQ(calls, 0);
     f.client.poll(f.now + 1000ms);
     CHECK_EQ(calls, 1);
+    CHECK(!received.ok);
+    CHECK(received.local_error);
     CHECK_EQ(received.error.code, moonraker::kErrorTimeout);
 }
 
@@ -120,6 +136,7 @@ TEST_CASE("jsonrpc: disconnect fails pending requests and calls while offline") 
     CHECK(!f.client.connected());
     CHECK(!last_connected);
     CHECK_EQ(connection_events, 1);
+    CHECK(first.local_error);
     CHECK_EQ(first.error.code, moonraker::kErrorDisconnected);
 
     RpcResponse offline;
@@ -131,6 +148,7 @@ TEST_CASE("jsonrpc: disconnect fails pending requests and calls while offline") 
     CHECK_EQ(offline_calls, 0);  // never re-entrant
     f.client.poll(f.now);
     CHECK_EQ(offline_calls, 1);
+    CHECK(offline.local_error);
     CHECK_EQ(offline.error.code, moonraker::kErrorDisconnected);
 }
 
@@ -141,6 +159,7 @@ TEST_CASE("jsonrpc: send failure is reported") {
     RpcResponse received;
     f.client.call("server.info", [&](const RpcResponse& r) { received = r; });
     f.client.poll(f.now);
+    CHECK(received.local_error);
     CHECK_EQ(received.error.code, moonraker::kErrorSendFailed);
 }
 
@@ -159,4 +178,17 @@ TEST_CASE("jsonrpc: notifications and malformed input") {
     f.client.poll(f.now);
     CHECK_EQ(method, std::string("notify_gcode_response"));
     CHECK_EQ(params[0].get<std::string>(), std::string("// hello"));
+}
+
+TEST_CASE("jsonrpc: last_message_at tracks incoming frames by poll time") {
+    Fixture f;
+    f.connect();
+    CHECK(f.client.last_message_at() == f.now);
+
+    f.client.poll(f.now + 5000ms);
+    CHECK(f.client.last_message_at() == f.now);  // silence does not count
+
+    notify(f.shared, "notify_status_update", json::array());
+    f.client.poll(f.now + 7000ms);
+    CHECK(f.client.last_message_at() == f.now + 7000ms);
 }

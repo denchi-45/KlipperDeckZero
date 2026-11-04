@@ -36,6 +36,10 @@ struct SessionOptions {
     std::chrono::milliseconds reconnect_delay{3000};
     std::chrono::milliseconds klippy_retry_delay{2000};
     std::chrono::milliseconds gcode_timeout{120000};
+    // Silence in Ready before a server.info probe checks that Moonraker still answers.
+    std::chrono::milliseconds liveness_timeout{10000};
+    // A probe not answered within this time forces a reconnect.
+    std::chrono::milliseconds probe_timeout{5000};
 };
 
 // Drives the Moonraker startup sequence and keeps a merged PrinterState.
@@ -89,6 +93,8 @@ private:
     void subscribe();
     void subscribe_objects(const std::vector<std::string>& sensor_objects);
     void schedule_server_info(std::chrono::milliseconds delay);
+    void probe_connection();
+    void force_reconnect(const std::string& reason);
     void set_state(SessionState state);
     void set_error(const std::string& message);
     void mark_changed();
@@ -109,6 +115,9 @@ private:
     Clock::time_point reconnect_at_{};
     bool server_info_scheduled_{false};
     Clock::time_point server_info_at_{};
+    bool probe_pending_{false};
+    // Set from a response callback (inside client_.poll()); acted on afterwards in poll().
+    bool liveness_failed_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.
     uint32_t connection_epoch_{0};
 };

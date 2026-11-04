@@ -255,3 +255,173 @@ TEST_CASE("session: gcode responses and operations") {
     CHECK(f.session.take_filelist_changed());
     CHECK(!f.session.take_filelist_changed());
 }
+
+TEST_CASE("session: klippy shutdown notification schedules server.info fallback") {
+    Fixture f;
+    f.reach_ready();
+    notify(f.shared, "notify_klippy_shutdown", json());
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::KlippyError);
+    CHECK_EQ(f.last_method(), std::string("printer.info"));
+    reply(f.shared, f.last_sent(), json{{"state", "shutdown"}, {"state_message", "Emergency stop"}});
+    f.poll();
+
+    // notify_klippy_ready is never delivered; the fallback poll must still run.
+    const auto sent_before = f.shared.sent.size();
+    f.poll(9999ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before);
+    f.poll(1ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before + 1);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    CHECK_EQ(f.last_method(), std::string("printer.objects.query"));
+    reply(f.shared, f.last_sent(), json{{"status", {{"heaters", {{"available_sensors", json::array()}}}}}});
+    f.poll();
+    CHECK_EQ(f.last_method(), std::string("printer.objects.subscribe"));
+    reply(f.shared, f.last_sent(), json{{"status", json::object()}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK(f.session.printer().klippy_state == model::KlippyState::Ready);
+}
+
+TEST_CASE("session: silent connection is probed, then reconnected") {
+    Fixture f;
+    f.reach_ready();
+    const auto sent_before = f.shared.sent.size();
+
+    // Reaching Ready is a fresh baseline: no probe right away.
+    f.poll(9999ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before);
+    f.poll(1ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before + 1);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    CHECK(f.session.session_state() == SessionState::Ready);
+
+    // Only one probe outstanding at a time.
+    f.poll(4999ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before + 1);
+    CHECK(f.session.session_state() == SessionState::Ready);
+
+    f.poll(1ms);
+    CHECK(f.session.session_state() == SessionState::Connecting);
+    CHECK_EQ(f.session.last_error(), std::string("no response from Moonraker (liveness check failed)"));
+    CHECK_EQ(f.shared.open_calls, 1);
+
+    f.poll(2999ms);
+    CHECK_EQ(f.shared.open_calls, 1);
+    f.poll(1ms);
+    CHECK_EQ(f.shared.open_calls, 2);
+
+    inject(f.shared, TransportEventType::Opened);
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Initializing);
+    CHECK_EQ(f.last_method(), std::string("server.connection.identify"));
+}
+
+TEST_CASE("session: answered probe keeps the connection") {
+    Fixture f;
+    f.reach_ready();
+    f.poll(10000ms);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    const auto sent_after_probe = f.shared.sent.size();
+
+    f.poll(1000ms);
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Ready);
+
+    // Well past the probe timeout, but inside the new liveness window: nothing happens.
+    f.poll(9999ms);
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK_EQ(f.shared.open_calls, 1);
+    CHECK_EQ(f.shared.close_calls, 0);
+    CHECK_EQ(f.shared.sent.size(), sent_after_probe);
+
+    // The next silent window probes again.
+    f.poll(1ms);
+    CHECK_EQ(f.shared.sent.size(), sent_after_probe + 1);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+}
+
+TEST_CASE("session: status traffic postpones the probe") {
+    Fixture f;
+    f.reach_ready();
+    const auto sent_before = f.shared.sent.size();
+    for (int i = 0; i < 5; ++i) {
+        f.poll(5000ms);
+        notify(f.shared, "notify_status_update", json::array({{{"extruder", {{"temperature", 26.0}}}}, 2.0}));
+        f.poll();
+    }
+    CHECK_EQ(f.shared.sent.size(), sent_before);
+    CHECK(f.session.session_state() == SessionState::Ready);
+}
+
+TEST_CASE("session: server.info timeout while waiting for klippy reconnects") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    f.poll(2000ms);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+
+    // The retry is never answered: the link is dead, not Klippy.
+    f.poll(10000ms);
+    CHECK(f.session.session_state() == SessionState::Connecting);
+    f.poll(3000ms);
+    CHECK_EQ(f.shared.open_calls, 2);
+}
+
+TEST_CASE("session: server.info error reply keeps polling") {
+    Fixture f;
+    f.connect_and_identify();
+    reply_error(f.shared, f.last_sent(), 503, "Service Unavailable");
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Initializing);
+    f.poll(2000ms);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    CHECK_EQ(f.shared.open_calls, 1);
+}
+
+TEST_CASE("session: server error reply with a local error code while waiting for klippy keeps polling") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    f.poll(2000ms);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    const auto sent_before = f.shared.sent.size();
+
+    // The server answered, even though its code collides with kErrorTimeout.
+    reply_error(f.shared, f.last_sent(), moonraker::kErrorTimeout, "server-side timeout");
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    CHECK_EQ(f.shared.open_calls, 1);
+    f.poll(1999ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before);
+    f.poll(1ms);
+    CHECK_EQ(f.shared.sent.size(), sent_before + 1);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    CHECK_EQ(f.shared.open_calls, 1);
+}
+
+TEST_CASE("session: probe answered with a local error code keeps the connection") {
+    Fixture f;
+    f.reach_ready();
+    f.poll(10000ms);
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+
+    reply_error(f.shared, f.last_sent(), moonraker::kErrorSendFailed, "server-side send failure");
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK_EQ(f.shared.open_calls, 1);
+    CHECK_EQ(f.shared.close_calls, 0);
+
+    // Past the probe timeout: the answered probe does not trip the watchdog.
+    f.poll(5000ms);
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK_EQ(f.shared.open_calls, 1);
+}
