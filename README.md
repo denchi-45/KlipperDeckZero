@@ -1,5 +1,7 @@
 # KlipperDeckZero
 
+日本語 | [English](README.en.md) | [简体中文](README.zh-CN.md)
+
 M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面とキーボードから 3D プリンターを操作するための LVGL アプリです。
 
 > 🚧 開発中です。第2段階(温度設定・押し出し/引き戻し・ファイル選択・印刷制御・軸の移動の操作画面)まで実装済みです。
