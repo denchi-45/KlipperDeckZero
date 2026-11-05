@@ -1,6 +1,6 @@
 # KlipperDeckZero
 
-[日本語](README.md) | [English](README.en.md) | 简体中文
+[English](README.md) | [日本語](README.ja.md) | 简体中文
 
 在 M5Stack **CardputerZero** 上运行 Klipper / Moonraker,通过设备自带的屏幕和键盘操作 3D 打印机的 LVGL 应用。
 
