@@ -408,6 +408,67 @@ TEST_CASE("session: server error reply with a local error code while waiting for
     CHECK_EQ(f.shared.open_calls, 1);
 }
 
+TEST_CASE("session: klippy stuck in startup becomes unresponsive") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    CHECK(!f.session.klippy_unresponsive());
+
+    // Keep answering server.info with "startup" so the link stays alive.
+    for (int i = 0; i < 14; ++i) {
+        f.poll(2000ms);
+        reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+        f.poll();
+    }
+    CHECK(!f.session.klippy_unresponsive());
+    const auto before = f.session.revision();
+    f.poll(2000ms);
+    CHECK(f.session.klippy_unresponsive());
+    CHECK(f.session.revision() > before);
+
+    f.session.restart_klipper_service();
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+    CHECK_EQ(f.last_sent()["params"]["service"].get<std::string>(), std::string("klipper"));
+    // The restarted Klippy gets a fresh timeout.
+    CHECK(!f.session.klippy_unresponsive());
+    f.poll(29999ms);
+    CHECK(!f.session.klippy_unresponsive());
+}
+
+TEST_CASE("session: unanswered firmware restart marks klippy unresponsive until ready") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "shutdown"}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::KlippyError);
+    reply(f.shared, f.last_sent(), json{{"state", "shutdown"}, {"state_message", "Lost communication"}});
+    f.poll();
+
+    bool timed_out = false;
+    f.session.firmware_restart([&](const moonraker::RpcResponse& response) {
+        timed_out = moonraker::is_no_response(response);
+    });
+    CHECK_EQ(f.last_method(), std::string("printer.firmware_restart"));
+    CHECK(!f.session.klippy_unresponsive());
+    f.poll(10000ms);
+    CHECK(timed_out);
+    CHECK(f.session.klippy_unresponsive());
+
+    // Klippy comes back: the stale timeout no longer counts.
+    notify(f.shared, "notify_klippy_ready", json());
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"status", {{"heaters", {{"available_sensors", json::array()}}}}}});
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"status", json::object()}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK(!f.session.klippy_unresponsive());
+}
+
 TEST_CASE("session: probe answered with a local error code keeps the connection") {
     Fixture f;
     f.reach_ready();

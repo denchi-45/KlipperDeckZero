@@ -40,7 +40,13 @@ struct SessionOptions {
     std::chrono::milliseconds liveness_timeout{10000};
     // A probe not answered within this time forces a reconnect.
     std::chrono::milliseconds probe_timeout{5000};
+    // Waiting this long for Klippy (startup / disconnected) counts as Klippy not responding.
+    std::chrono::milliseconds klippy_stuck_timeout{30000};
 };
+
+// True when the call failed locally because the server never answered (timeout / send failure).
+// A server error reply is an answer, even when its code collides with the local codes.
+bool is_no_response(const RpcResponse& response);
 
 // Drives the Moonraker startup sequence and keeps a merged PrinterState.
 // Everything (including callbacks) runs on the thread that calls poll().
@@ -81,6 +87,12 @@ public:
     void restart(ResultHandler handler = {});
     // FIRMWARE_RESTART: also resets the MCUs, which recovers an MCU shutdown.
     void firmware_restart(ResultHandler handler = {});
+    // machine.services.restart for the klipper service: restarts the Klippy process itself,
+    // which recovers a Klippy that no longer answers Moonraker (where RESTART would time out).
+    void restart_klipper_service(ResultHandler handler = {});
+    // True while Moonraker answers but Klippy does not: it has been starting / disconnected for
+    // klippy_stuck_timeout, or a RESTART / FIRMWARE_RESTART got no answer.
+    bool klippy_unresponsive() const;
     void call(const std::string& method, Json params, ResultHandler handler = {},
               std::chrono::milliseconds timeout = JsonRpcClient::kDefaultTimeout);
 
@@ -95,6 +107,7 @@ private:
     void schedule_server_info(std::chrono::milliseconds delay);
     void probe_connection();
     void force_reconnect(const std::string& reason);
+    ResultHandler watch_klippy_restart(ResultHandler handler);
     void set_state(SessionState state);
     void set_error(const std::string& message);
     void mark_changed();
@@ -118,6 +131,12 @@ private:
     bool probe_pending_{false};
     // Set from a response callback (inside client_.poll()); acted on afterwards in poll().
     bool liveness_failed_{false};
+    // When the session last entered WaitingKlippy (or a Klipper service restart was requested).
+    Clock::time_point waiting_since_{};
+    // A RESTART / FIRMWARE_RESTART timed out; cleared once Klippy is ready or reconnecting.
+    bool klippy_restart_unanswered_{false};
+    // klippy_unresponsive() as of the last poll(), to report its changes.
+    bool reported_unresponsive_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.
     uint32_t connection_epoch_{0};
 };

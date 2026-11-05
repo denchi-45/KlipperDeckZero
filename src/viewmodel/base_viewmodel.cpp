@@ -201,7 +201,8 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
     set_if_changed(homed_axes_, ready ? format::homed_axes(printer.homed_axes) : std::string());
 
     const auto overlay =
-        format::connection_overlay(state, printer, session.endpoint(), session.last_error());
+        format::connection_overlay(
+            state, printer, session.endpoint(), session.last_error(), session.klippy_unresponsive());
     set_if_changed(overlay_title_, overlay.title);
     set_if_changed(overlay_detail_, overlay.detail);
     set_if_changed(overlay_tone_, tone_to_int(overlay.tone));

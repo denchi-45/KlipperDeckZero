@@ -107,4 +107,14 @@ TEST_CASE("format: connection overlay") {
     printer.klippy_state = model::KlippyState::Startup;
     const auto waiting = format::connection_overlay(SessionState::WaitingKlippy, printer, "ws://x", "");
     CHECK_EQ(waiting.hint, error.hint);
+
+    const auto stuck = format::connection_overlay(SessionState::WaitingKlippy, printer, "ws://x", "", true);
+    CHECK_EQ(stuck.title, std::string("Klipper not responding"));
+    CHECK_EQ(stuck.detail, std::string("Klippy state: startup"));
+    CHECK(stuck.tone == format::Tone::Error);
+    CHECK_EQ(stuck.hint, std::string("R: restart Klipper service  S: settings"));
+
+    // Without a connection to Moonraker the flag cannot apply.
+    CHECK_EQ(format::connection_overlay(SessionState::Connecting, printer, "ws://x", "", true).hint,
+             std::string("S: connection settings"));
 }

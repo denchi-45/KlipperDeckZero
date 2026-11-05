@@ -140,9 +140,23 @@ StatusBadge status_badge(moonraker::SessionState session, const model::PrinterSt
 ConnectionOverlay connection_overlay(moonraker::SessionState session,
                                      const model::PrinterState& printer,
                                      const std::string& endpoint,
-                                     const std::string& last_error) {
+                                     const std::string& last_error,
+                                     bool klippy_unresponsive) {
     // Moonraker is reachable, so Klipper itself can be restarted from here.
     constexpr const char* kRestartHint = "R: restart  F: firmware restart  S: settings";
+
+    const bool klippy_down =
+        session == moonraker::SessionState::WaitingKlippy || session == moonraker::SessionState::KlippyError;
+    if (klippy_down && klippy_unresponsive) {
+        // RESTART / FIRMWARE_RESTART go through Klippy and would time out; only its service restart helps.
+        return {true,
+                "Klipper not responding",
+                session == moonraker::SessionState::KlippyError && !printer.state_message.empty()
+                    ? printer.state_message
+                    : std::string("Klippy state: ") + model::to_string(printer.klippy_state),
+                Tone::Error,
+                "R: restart Klipper service  S: settings"};
+    }
 
     switch (session) {
         case moonraker::SessionState::Ready:
