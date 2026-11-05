@@ -1,168 +1,170 @@
 # KlipperDeckZero
 
-M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面とキーボードから 3D プリンターを操作するための LVGL アプリです。
+English | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
 
-> 🚧 開発中です。第2段階(温度設定・押し出し/引き戻し・ファイル選択・印刷制御・軸の移動の操作画面)まで実装済みです。
+An LVGL app that puts Klipper / Moonraker on the M5Stack **CardputerZero** so you can control a 3D printer from the device's own screen and keyboard.
 
-## できるようにしたいこと
+> 🚧 Under development. Stage 2 (control screens for temperature, extrude/retract, file selection, print control, and axis movement) is implemented.
 
-- プリンターの状態表示(状態、進捗、経過/残り時間、ノズル・ベッド温度、印刷中のファイルのサムネイルなど)
-- G-code ファイルの選択と印刷開始、一時停止/再開/中止
-- ホットエンド・ベッドの昇温指示
-- フィラメントの押し出し(Extrude)と引き戻し(Retract)
-- 軸の移動(ジョグ)、ホーミング、モーターのオフ
+## Goals
 
-## 構成
+- Printer status display (state, progress, elapsed/remaining time, nozzle and bed temperatures, thumbnail of the file being printed, etc.)
+- Select G-code files and start printing; pause/resume/cancel
+- Set hotend and bed heating targets
+- Filament extrude (Extrude) and retract (Retract)
+- Axis movement (jogging), homing, motors off
 
-- ベース: [CardputerZero/Template](https://github.com/CardputerZero/Template)(C++17 / LVGL 9.5 / CMake)
-- プリンター制御: [Moonraker](https://moonraker.readthedocs.io/) の JSON-RPC API
-  - 実機: Unix ソケット(`~/printer_data/comms/moonraker.sock`)
-  - デスクトップシミュレーター: WebSocket(`ws://<printer-ip>:7125/websocket`)
+## Architecture
 
-## 画面と操作
+- Base: [CardputerZero/Template](https://github.com/CardputerZero/Template) (C++17 / LVGL 9.5 / CMake)
+- Printer control: [Moonraker](https://moonraker.readthedocs.io/) JSON-RPC API
+  - Device: Unix socket (`~/printer_data/comms/moonraker.sock`)
+  - Desktop simulator: WebSocket (`ws://<printer-ip>:7125/websocket`)
 
-### 画面構成
+## Screens and controls
 
-<img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示画面。上からタイトルバー、PRINTING バッジとファイル名と進捗バー、時間・レイヤー・温度、最下行の Speed/Flow/Fan、5 スロットのナビバーと右端のレイヤー表示 1/2">
+### Screen layout
 
-どの画面も同じ枠組みです。
+<img src="docs/images/screen-status-printing.png" width="640" alt="Status screen while printing. From top: title bar, PRINTING badge with file name and progress bar, time, layer and temperatures, bottom row with Speed/Flow/Fan, and the 5-slot nav bar with the layer indicator 1/2 at the right end">
 
-- **タイトルバー**: 左に画面名、右にネットワーク接続(Wi-Fi の電波強度 / 有線)、バッテリー残量、時計を出す。
-- **状態バッジ**: プリンターの状態(`OFFLINE` / `STARTING` / `READY` / `PRINTING` / `PAUSED` / `COMPLETE` / `CANCELLED` / `ERROR` / `SHUTDOWN`)を色分けして出す。状態表示と印刷制御では、横にファイル名と進捗バーが並ぶ。
-- **内容エリア**: 画面ごとの表示と操作項目。選んでいる項目は緑で示す。
-- **最下行**: 選んでいる項目の操作のヒントや、エラーなどのメッセージ。状態表示では Speed / Flow / Fan を出す。
-- **ナビバー**: 画面下部に 5 つのスロットを並べる。各スロットはキーボードの `4`〜`8` のキーの真上にあり、押すキーと位置がそろっている。スロットはレイヤーに分かれていて(いまは 2 枚)、`Sym`+`H` / `Sym`+`J` で前 / 次のレイヤーに切り替える。右端に今のレイヤー(`1/2` など)を出す。現在の画面のアイコンは緑になり(表示中のレイヤーにない画面なら緑のアイコンはない)、空きスロットは無地で選べない。
-- **トースト**: 操作の結果(成功 / Klipper のエラー)や「Printer is not ready」などを、画面下部に一時的に出す。
-- **テーマ**: ライト / ダークを `D` で切り替える。
+Every screen shares the same frame.
 
-> この README のスクリーンショットは、デスクトップシミュレーターを疑似 Moonraker(fake_moonraker)に接続して撮影したものです。本体フレームとバーチャルキーボードを含めて表示しています(キーボード上の記号はシミュレーターでのキー割り当ての目安です)。撮り直し方は「[README のスクリーンショット](#readme-のスクリーンショット)」を参照してください。
+- **Title bar**: screen name on the left; network connection (Wi-Fi signal strength / wired), battery level, and clock on the right.
+- **Status badge**: shows the printer state (`OFFLINE` / `STARTING` / `READY` / `PRINTING` / `PAUSED` / `COMPLETE` / `CANCELLED` / `ERROR` / `SHUTDOWN`), color-coded. On the status and print control screens, the file name and a progress bar sit next to it.
+- **Content area**: each screen's information and controls. The selected item is shown in green.
+- **Bottom row**: hints for the selected item, or messages such as errors. The status screen shows Speed / Flow / Fan here.
+- **Nav bar**: five slots along the bottom of the screen. Each slot sits directly above the `4`–`8` keys on the keyboard, so the key you press lines up with its slot. Slots are grouped into layers (currently 2); `Sym`+`H` / `Sym`+`J` switches to the previous / next layer. The current layer (e.g. `1/2`) is shown at the right end. The current screen's icon is green (if the screen isn't on the displayed layer, no icon is green), and empty slots are blank and can't be selected.
+- **Toast**: briefly shows operation results (success / Klipper errors) or messages like "Printer is not ready" at the bottom of the screen.
+- **Theme**: `D` toggles light / dark.
 
-### 画面一覧
+> The screenshots in this README were taken with the desktop simulator connected to a fake Moonraker (fake_moonraker). They include the device frame and the virtual keyboard (the labels on the keyboard indicate the simulator's key assignments). See "[README screenshots](#readme-screenshots)" for how to retake them.
 
-| レイヤー | キー | 画面 | 役割 |
+### Screen list
+
+| Layer | Key | Screen | Purpose |
 |---|---|---|---|
-| 1 | `4` | 状態表示(ホーム) | 状態、進捗、経過 / 残り時間、レイヤー、ノズル・ベッド温度、速度・流量・ファン |
-| 1 | `5` | 温度設定 | ノズル・ベッドの目標温度、プリセット |
-| 1 | `6` | 押し出し / 引き戻し | フィラメントの押し出し(Extrude)と引き戻し(Retract) |
-| 1 | `7` | ファイル選択と印刷開始 | G-code ファイルの一覧と詳細、印刷開始 |
-| 1 | `8` | 印刷制御 | 一時停止 / 再開、中止、非常停止 |
-| 2 | `4` | 軸の移動 | ジョグ、ホーミング、モーターオフ |
-| 2 | `5` | 接続設定(`S` でも開く) | 接続先(この端末の Klipper / ネットワーク上のプリンター) |
-| 2 | `6`〜`8` | (空き) | 今後の画面用 |
+| 1 | `4` | Status (home) | State, progress, elapsed / remaining time, layer, nozzle and bed temperatures, speed, flow, fan |
+| 1 | `5` | Temperature | Nozzle and bed target temperatures, presets |
+| 1 | `6` | Extrude / retract | Filament extrude (Extrude) and retract (Retract) |
+| 1 | `7` | File selection and print start | G-code file list and details, start printing |
+| 1 | `8` | Print control | Pause / resume, cancel, emergency stop |
+| 2 | `4` | Axis movement | Jogging, homing, motors off |
+| 2 | `5` | Connection settings (also opened with `S`) | Connection target (Klipper on this device / a printer on the network) |
+| 2 | `6`–`8` | (empty) | Reserved for future screens |
 
-レイヤーと画面は独立しています。レイヤーを切り替えても変わるのはナビバーの表示(どのキーでどの画面を開くか)だけで、画面はそのままです。画面が変わるのは `4`〜`8`・`S`・`ESC` を押したときだけで、そのときもレイヤーは切り替わりません。
+Layers and screens are independent. Switching layers only changes what the nav bar shows (which key opens which screen); the current screen stays as it is. The screen changes only when you press `4`–`8`, `S`, or `ESC`, and even then the layer does not change.
 
-| レイヤー 1 を表示 | `Sym`+`J` でレイヤー 2 を表示 |
+| Layer 1 displayed | Layer 2 displayed with `Sym`+`J` |
 |---|---|
-| <img src="docs/images/screen-status-ready.png" width="640" alt="状態表示でレイヤー 1 を表示。ナビバーは状態表示・温度・押し出し・ファイル・印刷制御で、状態表示のアイコンが緑、右端に 1/2"> | <img src="docs/images/screen-status-layer2.png" width="640" alt="同じ状態表示のままレイヤー 2 を表示。ナビバーは移動・接続設定と空き 3 つに変わり、緑のアイコンはなく、右端に 2/2"> |
+| <img src="docs/images/screen-status-ready.png" width="640" alt="Status screen with layer 1 displayed. The nav bar shows Status, Temperature, Extrude, Files and Print control; the Status icon is green, and 1/2 is at the right end"> | <img src="docs/images/screen-status-layer2.png" width="640" alt="Same status screen with layer 2 displayed. The nav bar changes to Move, Connection settings and three empty slots; no icon is green, and 2/2 is at the right end"> |
 
-右の状態で `4` を押すと軸の移動、`5` を押すと接続設定が開きます。
+In the state on the right, pressing `4` opens axis movement and `5` opens connection settings.
 
-### 共通のキー操作
+### Common key controls
 
-| キー | 動作 |
+| Key | Action |
 |---|---|
-| `4`〜`8` | 表示中のレイヤーのスロットの画面へ切り替え(上の画面一覧) |
-| `Sym`+`H` / `Sym`+`J` | 前 / 次のレイヤーへ切り替え(シミュレーターは `<` / `>`) |
-| `S` | 接続設定(表示中のレイヤーは変わらない) |
-| `ESC` | ホーム(状態表示)へ戻る(表示中のレイヤーは変わらない) |
-| `4` / `ESC` 長押し | 終了(ホームで押したときのみ。`4` はレイヤー 1 を表示しているときだけ) |
-| `D` | ライト / ダーク切替 |
-| `R` / `F` | Klipper 再起動(`RESTART`) / MCU 再起動(`FIRMWARE_RESTART`)。状態表示で 3 秒以内に 2 回押すと実行。Klipper が ready で印刷中・一時停止中のときは実行しない |
-| `Fn`+`H` | ヘルプ |
-| `Fn`+`J` | スクリーンショット(`~/Pictures/Screenshots` に PNG 保存。シミュレーターは `PrintScreen` キー) |
+| `4`–`8` | Switch to the screen in that slot of the displayed layer (see the screen list above) |
+| `Sym`+`H` / `Sym`+`J` | Switch to the previous / next layer (`<` / `>` in the simulator) |
+| `S` | Connection settings (the displayed layer does not change) |
+| `ESC` | Return to home (status screen) (the displayed layer does not change) |
+| Long-press `4` / `ESC` | Quit (only when pressed on the home screen; `4` only while layer 1 is displayed) |
+| `D` | Toggle light / dark |
+| `R` / `F` | Restart Klipper (`RESTART`) / restart MCU (`FIRMWARE_RESTART`). Runs when pressed twice within 3 seconds on the status screen. Not run while Klipper is ready and printing or paused |
+| `Fn`+`H` | Help |
+| `Fn`+`J` | Screenshot (saved as PNG to `~/Pictures/Screenshots`; the `PrintScreen` key in the simulator) |
 
-各画面では `↑`/`↓` で項目を選び、`←`/`→` で値や選択肢を切り替え、`Enter` で実行します。数字を打ち込んでいる間は、すべてのキーを画面が受け取ります(`6` を打ってもページは切り替わりません)。
+On each screen, `↑`/`↓` selects an item, `←`/`→` changes a value or option, and `Enter` executes. While you are typing a number, the screen receives every key (typing `6` won't switch pages).
 
-#### 状態表示(レイヤー 1 の `4`)
+#### Status (`4` on layer 1)
 
-| 印刷中(ライト) | 印刷中(ダーク) |
+| Printing (light) | Printing (dark) |
 |---|---|
-| <img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示(ライトテーマ)。PRINTING バッジ、ファイル名、進捗 3%、経過 02:35 / 残り 1:20:25、レイヤー 7/240、ノズル 215.3/215、ベッド 58.4/60"> | <img src="docs/images/screen-status-printing-dark.png" width="640" alt="印刷中の状態表示(ダークテーマ)"> |
+| <img src="docs/images/screen-status-printing.png" width="640" alt="Status screen while printing (light theme). PRINTING badge, file name, progress 3%, elapsed 02:35 / remaining 1:20:25, layer 7/240, nozzle 215.3/215, bed 58.4/60"> | <img src="docs/images/screen-status-printing-dark.png" width="640" alt="Status screen while printing (dark theme)"> |
 
-<img src="docs/images/screen-status-ready.png" width="640" alt="待機中の状態表示。READY バッジと No active print、ノズル・ベッドの目標温度は off">
+<img src="docs/images/screen-status-ready.png" width="640" alt="Status screen while idle. READY badge and No active print; nozzle and bed targets are off">
 
-状態バッジ・ファイル名・進捗(%)、経過 / 残り時間・レイヤー、ノズル・ベッドの現在温度と目標温度・ヒーター出力、最下行に Speed / Flow / Fan を出します。印刷していないときは「No active print」です。印刷中・一時停止中は、ファイルのサムネイルを上の 3 行の左に出します(デスクトップのシミュレーターでは、疑似 Moonraker がファイルのメタデータで `thumbnails` を空で返すため出ません)。
+Shows the status badge, file name, and progress (%); elapsed / remaining time and layer; nozzle and bed current and target temperatures and heater power; and Speed / Flow / Fan on the bottom row. When nothing is printing it shows "No active print". While printing or paused, the file's thumbnail appears to the left of the top three rows (it does not appear in the desktop simulator, because the fake Moonraker returns empty `thumbnails` in the file metadata).
 
-この画面で `R` / `F` を 3 秒以内に 2 回押すと、Klipper / MCU を再起動します。Klipper が ready で印刷中・一時停止中のときは実行しません。Klipper の起動中・切断中や、エラー(`error`・`shutdown`)の間は、印刷状態が古いままでも再起動できるので、Klipper が止まった後の復旧に使えます。
+On this screen, pressing `R` / `F` twice within 3 seconds restarts Klipper / the MCU. It does not run while Klipper is ready and printing or paused. While Klipper is starting up or disconnected, or in an error state (`error`, `shutdown`), you can restart even if the print state is stale, so you can use this to recover after Klipper has stopped.
 
-#### 温度設定(レイヤー 1 の `5`)
+#### Temperature (`5` on layer 1)
 
-<img src="docs/images/screen-temperature.png" width="640" alt="温度設定画面。Nozzle と Bed の現在温度と Target、Preset の PLA 200/60・PETG 235/80・Off、最下行に mcu センサーの温度">
+<img src="docs/images/screen-temperature.png" width="640" alt="Temperature screen. Nozzle and Bed current temperatures and Target, Preset with PLA 200/60, PETG 235/80 and Off, and the mcu sensor temperature on the bottom row">
 
-`↑`/`↓` でノズル・ベッド・プリセットを選びます(ベッドがない構成ではベッドの行を出しません)。
+`↑`/`↓` selects the nozzle, bed, or preset (the bed row is hidden on setups without a bed).
 
-- ノズル・ベッド: `←`/`→` で目標温度を 5 刻みで上下し、`Enter` で数字を打ち込めます。もう一度 `Enter` で送信、`ESC` で取消です。上限はノズル 350、ベッド 150(実際の上限は Klipper の `max_temp` が判定します)。
-- プリセット(PLA 200/60、PETG 235/80、Off): `←`/`→` で選び、`Enter` で両方のヒーターに設定します。
+- Nozzle / bed: `←`/`→` raises or lowers the target temperature in steps of 5, and `Enter` lets you type a number. Press `Enter` again to send, or `ESC` to cancel. The limits are 350 for the nozzle and 150 for the bed (the actual limit is enforced by Klipper's `max_temp`).
+- Presets (PLA 200/60, PETG 235/80, Off): `←`/`→` selects one, and `Enter` applies it to both heaters.
 
-目標温度は `SET_HEATER_TEMPERATURE` で送り、結果をトーストで表示します。最下行には、ノズル・ベッド以外の温度センサー(`temperature_sensor` など)と、この端末の CPU 温度を表示します。
+Target temperatures are sent with `SET_HEATER_TEMPERATURE`, and the result is shown in a toast. The bottom row shows temperature sensors other than the nozzle and bed (such as `temperature_sensor`) and this device's CPU temperature.
 
-#### 押し出し / 引き戻し(レイヤー 1 の `6`)
+#### Extrude / retract (`6` on layer 1)
 
-<img src="docs/images/screen-extruder.png" width="640" alt="押し出し画面。上部にノズル温度と Nozzle too cold to extrude(ノズルが冷えているため)、Length・Speed・Move(Retract / Extrude)の選択行">
+<img src="docs/images/screen-extruder.png" width="640" alt="Extrude screen. Nozzle temperature and Nozzle too cold to extrude (because the nozzle is cold) at the top, with selection rows for Length, Speed and Move (Retract / Extrude)">
 
-`↑`/`↓` で長さ(1/5/10/25/50 mm)・速度(2/5/10 mm/s)・向き(Retract / Extrude)を選び、`←`/`→` で切り替えます。`Enter` でどの行からでも実行します。画面上部にノズル温度と、押し出せるかどうかを出します。
+`↑`/`↓` selects length (1/5/10/25/50 mm), speed (2/5/10 mm/s), or direction (Retract / Extrude), and `←`/`→` changes the value. `Enter` executes from any row. The top of the screen shows the nozzle temperature and whether extrusion is possible.
 
-- 実行しない: 印刷中、ノズルが押し出せる温度(Klipper の `min_extrude_temp`)に達していないとき。
-- 一時停止中は実行できます(フィラメント交換のため)。
+- Not executed: while printing, or when the nozzle has not reached extrusion temperature (Klipper's `min_extrude_temp`).
+- Allowed while paused (for filament changes).
 
-`SAVE_GCODE_STATE` → `M83` → `G1 E<±長さ> F<速度×60>`(`F` は mm/min) → `RESTORE_GCODE_STATE` を送るので、印刷側の押し出しモードは変わりません。
+It sends `SAVE_GCODE_STATE` → `M83` → `G1 E<±length> F<speed×60>` (`F` is in mm/min) → `RESTORE_GCODE_STATE`, so the print's extrusion mode is left unchanged.
 
-#### ファイル選択と印刷開始(レイヤー 1 の `7`)
+#### File selection and print start (`7` on layer 1)
 
-| 一覧 | 詳細 |
+| List | Details |
 |---|---|
-| <img src="docs/images/screen-files.png" width="640" alt="ファイル一覧。G-code ファイルを新しい順にサイズ付きで並べ、1/6 ページ目を表示"> | <img src="docs/images/screen-files-detail.png" width="640" alt="ファイル詳細。Time・Filament・Layer・Temps の各行と、Enter: start print Esc: back to list のヒント"> |
+| <img src="docs/images/screen-files.png" width="640" alt="File list. G-code files listed newest first with sizes, showing page 1/6"> | <img src="docs/images/screen-files-detail.png" width="640" alt="File details. Time, Filament, Layer and Temps rows, with the hint Enter: start print Esc: back to list"> |
 
-プリンターの G-code ファイルを新しい順に並べます(画面を開くたびに取り直します)。`↑`/`↓` で選び(`←`/`→` で 5 件ずつ移動)、`Enter` で詳細(サムネイル・予想時間・フィラメント量・レイヤー高さ・初層温度)を表示します。
+Lists the printer's G-code files, newest first (re-fetched each time the screen opens). `↑`/`↓` selects (`←`/`→` moves 5 at a time), and `Enter` shows details (thumbnail, estimated time, filament amount, layer height, first-layer temperatures).
 
-詳細でもう一度 `Enter` を押すと印刷を開始し、開始できたら状態表示に戻ります。開始に失敗したときはトーストに理由を出し、Files 画面のままです。`ESC` で一覧に戻ります。印刷中・一時停止中は開始しません。
+Pressing `Enter` again in the details starts the print and, once it has started, returns to the status screen. If starting fails, a toast shows the reason and you stay on the Files screen. `ESC` returns to the list. Printing won't start while a print is running or paused.
 
-#### 印刷制御(レイヤー 1 の `8`)
+#### Print control (`8` on layer 1)
 
-<img src="docs/images/screen-control.png" width="640" alt="印刷制御画面。上部に状態バッジ・ファイル名・進捗、Pause・Cancel・E-Stop のボタン">
+<img src="docs/images/screen-control.png" width="640" alt="Print control screen. Status badge, file name and progress at the top, with Pause, Cancel and E-Stop buttons">
 
-上部に状態バッジ・ファイル名・進捗・経過 / 残り時間・レイヤーを出します。`←`/`→` でボタンを選びます。
+The top shows the status badge, file name, progress, elapsed / remaining time, and layer. `←`/`→` selects a button.
 
-- Pause / Resume: `Enter` で一時停止・再開。一時停止中はラベルが Resume になります。
-- Cancel: 3 秒以内に `Enter` を 2 回押すと中止。1 回目でボタンが赤くなり、ほかのキーを押すと取り消します。
-- E-Stop: `Enter` を長押しすると非常停止(`printer.emergency_stop`)。Klipper が ready でなくても、Moonraker につながっていれば送ります。
+- Pause / Resume: `Enter` pauses or resumes. While paused, the label changes to Resume.
+- Cancel: press `Enter` twice within 3 seconds to cancel. The first press turns the button red; pressing any other key aborts.
+- E-Stop: long-press `Enter` for an emergency stop (`printer.emergency_stop`). It is sent as long as Moonraker is connected, even if Klipper is not ready.
 
-印刷していないときは Pause と Cancel が灰色になり、押しても「No print is running」と出るだけです。非常停止の後は、状態表示で `F` を 2 回押して `FIRMWARE_RESTART` すると復帰します。
+When nothing is printing, Pause and Cancel are grayed out, and pressing them only shows "No print is running". After an emergency stop, recover by pressing `F` twice on the status screen to run `FIRMWARE_RESTART`.
 
-#### 軸の移動(レイヤー 2 の `4`)
+#### Axis movement (`4` on layer 2)
 
-<img src="docs/images/screen-move.png" width="640" alt="移動画面。上部に X/Y/Z の位置と Not homed、Axis X/Y/Z と Step 0.1/1/10/50、X-10 / X+10、Home X・Home all・Motors off。ナビバーはレイヤー 2(2/2)">
+<img src="docs/images/screen-move.png" width="640" alt="Move screen. X/Y/Z position and Not homed at the top, Axis X/Y/Z and Step 0.1/1/10/50, X-10 / X+10, Home X, Home all and Motors off. The nav bar is on layer 2 (2/2)">
 
-`↑`/`↓` で項目(軸 / 移動量 / `−` 方向 / `+` 方向 / その軸のホーム / 全軸ホーム / モーターオフ)を選びます。軸(X/Y/Z)と移動量(0.1/1/10/50 mm)は `←`/`→` で切り替え、ほかの項目は `Enter` で実行します。画面上部にツールヘッドの位置とホーム済みの軸(「Not homed」、または「Homed」の後に軸名)を出します。
+`↑`/`↓` selects an item (axis / step / `−` direction / `+` direction / home that axis / home all / motors off). Axis (X/Y/Z) and step (0.1/1/10/50 mm) are changed with `←`/`→`; the other items execute with `Enter`. The top of the screen shows the toolhead position and the homed axes ("Not homed", or "Homed" followed by the axis names).
 
-- ジョグ: `SAVE_GCODE_STATE` → `G91` → `G1 <軸><±移動量> F<送り>`(XY 3000 / Z 600 mm/min) → `RESTORE_GCODE_STATE` を送るので、印刷側の位置決めモードは変わりません。
-- ホーム: `G28`(全軸) / `G28 X`(その軸)。モーターオフ: `M84`。
+- Jog: sends `SAVE_GCODE_STATE` → `G91` → `G1 <axis><±distance> F<feed rate>` (XY 3000 / Z 600 mm/min) → `RESTORE_GCODE_STATE`, so the print's positioning mode is left unchanged.
+- Home: `G28` (all axes) / `G28 X` (that axis). Motors off: `M84`.
 
-実行しない条件(理由はトーストと最下行に出します):
+Conditions under which nothing is executed (the reason is shown in a toast and on the bottom row):
 
-- 印刷中: すべて。
-- 一時停止中: ホームとモーターオフ(一時停止位置を失うため)。ジョグはできます。
-- ホームしていない軸のジョグ: 「Home the axis first」と出します。
+- While printing: everything.
+- While paused: homing and motors off (they would lose the pause position). Jogging is allowed.
+- Jogging an axis that hasn't been homed: shows "Home the axis first".
 
-#### 接続設定(レイヤー 2 の `5`、または `S`)
+#### Connection settings (`5` on layer 2, or `S`)
 
-<img src="docs/images/screen-settings.png" width="640" alt="接続設定画面。Connect to Network、Host・Port・API key、Save & connect、最下行に状態バッジ。ナビバーはレイヤー 2(2/2)">
+<img src="docs/images/screen-settings.png" width="640" alt="Connection settings screen. Connect to Network, Host, Port and API key, Save & connect, and the status badge on the bottom row. The nav bar is on layer 2 (2/2)">
 
-`↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket、Host / Port / API key)」から選べ、「Save & connect」で保存して接続し直します。最下行には常に状態バッジを出し、その横に通常は接続状態を、保存結果や入力エラーがある間はそのメッセージを出します。
+`↑`/`↓` selects an item, `Enter` edits / confirms, `←`/`→` changes an option, and `ESC` cancels editing / goes back. The connection target can be "this device (Unix socket)" or "network (WebSocket, Host / Port / API key)"; "Save & connect" saves and reconnects. The bottom row always shows the status badge, next to which it normally shows the connection state, or the message while a save result or input error is pending.
 
-## ロードマップ
+## Roadmap
 
-1. ✅ Moonraker 通信層 + 状態表示画面
-2. ✅ 温度設定、押し出し/引き戻し、ファイル選択、印刷制御、軸の移動の画面
+1. ✅ Moonraker communication layer + status screen
+2. ✅ Screens for temperature, extrude/retract, file selection, print control, and axis movement
 
-## ビルド
+## Build
 
-[CardputerZero/Template](https://github.com/CardputerZero/Template) と同じ CMake Presets を使います。
+Uses the same CMake Presets as [CardputerZero/Template](https://github.com/CardputerZero/Template).
 
-### Windows デスクトップシミュレーター(MinGW)
+### Windows desktop simulator (MinGW)
 
-前提: CMake 3.31+, Ninja, MinGW-w64(WinLibs など), vcpkg(`VCPKG_ROOT` を設定)
+Prerequisites: CMake 3.31+, Ninja, MinGW-w64 (WinLibs, etc.), vcpkg (with `VCPKG_ROOT` set)
 
 ```powershell
 cmake --preset win32-mingw64
@@ -170,65 +172,65 @@ cmake --build build/mingw64 --config Debug
 ./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
-MSVC の場合は `win32-msvc` プリセット(`build/msvc`)を使います。
+For MSVC, use the `win32-msvc` preset (`build/msvc`).
 
-### 実機(CardputerZero)向けクロスビルド / パッケージ
+### Cross build / package for the device (CardputerZero)
 
 ```sh
 cmake --workflow --preset cp0-cross-package   # dist/KlipperDeckZero_*_arm64.deb
 REMOTE_USER=pi REMOTE_HOST=<ip> ./deploy.sh
 ```
 
-## 設定ファイル
+## Configuration file
 
-- デスクトップ: `config/klipper-deck-zero.conf`
-- 実機: `/etc/klipper-deck-zero.conf`(ユーザー設定は `~/.config/klipper-deck-zero/klipper-deck-zero.conf`)
+- Desktop: `config/klipper-deck-zero.conf`
+- Device: `/etc/klipper-deck-zero.conf` (user settings in `~/.config/klipper-deck-zero/klipper-deck-zero.conf`)
 
 ```ini
 [moonraker]
-# unix: この端末の Klipper / websocket: 別の機械の Klipper
-# (既定: 実機=unix, シミュレーター=websocket で 127.0.0.1)
+# unix: Klipper on this device / websocket: Klipper on another machine
+# (default: device = unix, simulator = websocket at 127.0.0.1)
 transport=websocket
 socket_path=~/printer_data/comms/moonraker.sock
-# websocket のときの接続先(ws://<host>:<port>/websocket)
+# websocket destination (ws://<host>:<port>/websocket)
 host=192.168.1.50
 port=7125
-# trusted_clients に入っていない場合のみ
+# only needed when the client is not in trusted_clients
 #api_key=
 ```
 
-## プリンターなしで動かす(疑似 Moonraker)
+## Running without a printer (fake Moonraker)
 
-デスクトップビルドには `fake_moonraker` が含まれます。ヒーター昇温・押し出し温度チェック・印刷進捗・非常停止・FW再起動を模擬します。
+The desktop build includes `fake_moonraker`. It simulates heater warm-up, the extrusion temperature check, print progress, emergency stop, and firmware restart.
 
 ```powershell
 ./build/mingw64/Debug/fake_moonraker.exe --speed 20   # ws://127.0.0.1:7125/websocket
 ./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
-実機につなぐ場合は `host=<プリンターIP>` に変更します。
+To connect to a real printer, change it to `host=<printer IP>`.
 
-### README のスクリーンショット
+### README screenshots
 
-`docs/images/screen-*.png` は、デスクトップシミュレーターを疑似 Moonraker につないで撮っています。画面を変えたときは、Debug ビルドの後に次のスクリプトで全部撮り直せます(ポート 7125 を空けておいてください)。
+`docs/images/screen-*.png` are captured with the desktop simulator connected to the fake Moonraker. When you change a screen, you can retake all of them with the following script after a Debug build (keep port 7125 free).
 
 ```powershell
 ./tools/readme_screenshots/capture.ps1
 ```
 
-シミュレーターのウィンドウにキー操作を送り、アプリのスクリーンショット機能で保存した画面(320x170)を本体フレームの画像に重ねて保存します。ウィンドウが画面に見えている必要はありません。`D` で切り替えたテーマは終了時に元に戻します。
+It sends key input to the simulator window, takes the screens (320x170) saved by the app's screenshot feature, and composites them onto the device frame image. The window doesn't need to be visible on screen. The theme toggled with `D` is restored on exit.
 
-## テスト
+## Tests
 
-LVGL に依存しない部分のユニットテストです。Moonraker クライアント(JSON-RPC / 状態マージ / 接続シーケンス)、設定の読み込み・保存、各画面の操作ロジック(接続設定のフォーム・ファイル一覧・温度・押し出し・印刷制御・移動)、G-code の状態の保存と復元、サムネイルの選び方、再起動の確認、ナビバーのレイヤーなどを確かめます。LVGL なしでも単独でビルドできます。
+Unit tests for the parts that don't depend on LVGL. They cover the Moonraker client (JSON-RPC / state merging / connection sequence), config loading and saving, each screen's control logic (connection settings form, file list, temperature, extrude, print control, move), G-code state save and restore, thumbnail selection, restart confirmation, nav bar layers, and more. They can be built standalone without LVGL.
 
 ```powershell
-ctest --test-dir build/mingw64 -C Debug            # プリセットビルドに含まれる
-# もしくは単独で
+ctest --test-dir build/mingw64 -C Debug            # included in the preset build
+# or standalone
 cmake -S tests -B build/tests -G Ninja && cmake --build build/tests && ./build/tests/kdz_tests
 ```
 
-## ドキュメント
+## Documentation
 
-- [設計ドキュメント](docs/design/README.md)(接続の仕組み、操作画面の設計)
-- [Moonraker API × CardputerZero 技術調査メモ](docs/moonraker_tech_notes.md)
+- [Design documents](docs/design/README.md) (connection architecture, control screen design)
+- [Moonraker API × CardputerZero technical research notes](docs/moonraker_tech_notes.md)
