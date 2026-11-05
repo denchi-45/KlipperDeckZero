@@ -12,6 +12,13 @@ namespace moonraker {
 
 namespace {
 constexpr std::size_t kMaxGcodeResponses = 32;
+
+// Errors produced locally when the server did not answer at all (as opposed to a server error).
+// Server error replies may reuse these codes; only a locally generated failure means no answer.
+bool is_no_response(const RpcResponse& response) {
+    return response.local_error &&
+           (response.error.code == kErrorTimeout || response.error.code == kErrorSendFailed);
+}
 } // namespace
 
 const char* to_string(SessionState state) {
@@ -48,6 +55,8 @@ void MoonrakerSession::start() {
     }
     reconnect_scheduled_ = false;
     server_info_scheduled_ = false;
+    probe_pending_ = false;
+    liveness_failed_ = false;
     set_state(SessionState::Connecting);
     client_.open();
 }
@@ -55,6 +64,8 @@ void MoonrakerSession::start() {
 void MoonrakerSession::stop() {
     reconnect_scheduled_ = false;
     server_info_scheduled_ = false;
+    probe_pending_ = false;
+    liveness_failed_ = false;
     ++connection_epoch_;
     // Mark stopped first: close() reports the disconnect synchronously.
     set_state(SessionState::Stopped);
@@ -65,6 +76,10 @@ void MoonrakerSession::poll(Clock::time_point now) {
     now_ = now;
     client_.poll(now);
 
+    if (liveness_failed_) {
+        liveness_failed_ = false;
+        force_reconnect("no response from Moonraker (liveness check failed)");
+    }
     if (reconnect_scheduled_ && now >= reconnect_at_) {
         reconnect_scheduled_ = false;
         set_state(SessionState::Connecting);
@@ -73,6 +88,10 @@ void MoonrakerSession::poll(Clock::time_point now) {
     if (server_info_scheduled_ && now >= server_info_at_) {
         server_info_scheduled_ = false;
         query_server_info();
+    }
+    if (state_ == SessionState::Ready && !probe_pending_ &&
+        now - client_.last_message_at() >= options_.liveness_timeout) {
+        probe_connection();
     }
 
     if (dirty_) {
@@ -123,6 +142,8 @@ void MoonrakerSession::on_connection(bool connected, const std::string& reason) 
 
     ++connection_epoch_;
     server_info_scheduled_ = false;
+    probe_pending_ = false;
+    liveness_failed_ = false;
 
     if (connected) {
         last_error_.clear();
@@ -170,6 +191,11 @@ void MoonrakerSession::query_server_info() {
         }
         if (!response.ok) {
             set_error("server.info failed: " + response.error.message);
+            if (is_no_response(response)) {
+                // Moonraker answers server.info itself even while Klippy is down: the link is dead.
+                liveness_failed_ = true;
+                return;
+            }
             schedule_server_info(options_.klippy_retry_delay);
             return;
         }
@@ -256,6 +282,32 @@ void MoonrakerSession::schedule_server_info(std::chrono::milliseconds delay) {
     server_info_at_ = now_ + delay;
 }
 
+void MoonrakerSession::probe_connection() {
+    probe_pending_ = true;
+    const auto epoch = connection_epoch_;
+    // Only the reply matters: any incoming frame refreshes the client's last_message_at().
+    client_.call("server.info", Json(), [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
+            return;
+        }
+        probe_pending_ = false;
+        if (!response.ok && is_no_response(response)) {
+            liveness_failed_ = true;
+        }
+    }, options_.probe_timeout);
+}
+
+void MoonrakerSession::force_reconnect(const std::string& reason) {
+    const bool was_connected = client_.connected();
+    // When connected, close() reports the disconnect synchronously and on_connection schedules the reconnect.
+    client_.close();
+    if (!was_connected) {
+        on_connection(false, reason);
+    }
+    // Replace close()'s generic "closed by client" with the actual cause.
+    set_error(reason);
+}
+
 void MoonrakerSession::on_notification(const std::string& method, const Json& params) {
     if (method == "notify_status_update") {
         if (params.is_array() && !params.empty() && apply_status(printer_, params[0])) {
@@ -289,6 +341,8 @@ void MoonrakerSession::on_notification(const std::string& method, const Json& pa
         printer_.klippy_state = model::KlippyState::Shutdown;
         set_state(SessionState::KlippyError);
         query_printer_info();
+        // Recovery is announced by notify_klippy_ready; poll slowly as a fallback.
+        schedule_server_info(options_.klippy_retry_delay * 5);
         mark_changed();
         return;
     }

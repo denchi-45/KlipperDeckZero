@@ -115,6 +115,7 @@ void JsonRpcClient::poll(Clock::time_point now) {
         switch (event.type) {
             case TransportEventType::Opened:
                 connected_ = true;
+                last_message_at_ = now;
                 if (connection_handler_) {
                     connection_handler_(true, {});
                 }
@@ -127,6 +128,7 @@ void JsonRpcClient::poll(Clock::time_point now) {
                 }
                 break;
             case TransportEventType::Message:
+                last_message_at_ = now;
                 handle_message(event.payload);
                 break;
         }
@@ -144,6 +146,7 @@ void JsonRpcClient::poll(Clock::time_point now) {
             continue;
         }
         RpcResponse response;
+        response.local_error = true;
         if (it->second.failure_code == kErrorSendFailed) {
             response.error = {kErrorSendFailed, "send failed: " + it->second.method};
         }
@@ -159,6 +162,10 @@ void JsonRpcClient::poll(Clock::time_point now) {
 
 std::size_t JsonRpcClient::pending_requests() const {
     return pending_.size();
+}
+
+Clock::time_point JsonRpcClient::last_message_at() const {
+    return last_message_at_;
 }
 
 void JsonRpcClient::handle_message(const std::string& text) {
@@ -194,6 +201,7 @@ void JsonRpcClient::fail_all_pending(int code, const std::string& message) {
     pending_.clear();
     RpcResponse response;
     response.error = {code, message};
+    response.local_error = true;
     for (auto& [id, request] : pending) {
         if (request.handler) {
             request.handler(response);
