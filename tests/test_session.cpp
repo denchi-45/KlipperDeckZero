@@ -469,6 +469,39 @@ TEST_CASE("session: unanswered firmware restart marks klippy unresponsive until 
     CHECK(!f.session.klippy_unresponsive());
 }
 
+TEST_CASE("session: unanswered restart while ready offers the service restart") {
+    Fixture f;
+    f.reach_ready();
+
+    // Klippy hangs without any notification: only the restart's timeout shows it.
+    f.session.restart();
+    CHECK_EQ(f.last_method(), std::string("printer.restart"));
+    f.poll(10000ms);
+    CHECK(f.session.klippy_unresponsive());
+    // The liveness probe went out too; Moonraker itself still answers it.
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK(f.session.klippy_unresponsive());
+
+    f.session.restart_klipper_service();
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+    CHECK(!f.session.klippy_unresponsive());
+}
+
+TEST_CASE("session: status update after an unanswered restart clears unresponsive") {
+    Fixture f;
+    f.reach_ready();
+    f.session.firmware_restart();
+    f.poll(10000ms);
+    CHECK(f.session.klippy_unresponsive());
+
+    notify(f.shared, "notify_status_update", json::array({{{"extruder", {{"temperature", 26.0}}}}, 2.0}));
+    f.poll();
+    CHECK(!f.session.klippy_unresponsive());
+}
+
 TEST_CASE("session: probe answered with a local error code keeps the connection") {
     Fixture f;
     f.reach_ready();

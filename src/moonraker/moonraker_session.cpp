@@ -318,6 +318,11 @@ void MoonrakerSession::on_notification(const std::string& method, const Json& pa
         if (params.is_array() && !params.empty() && apply_status(printer_, params[0])) {
             mark_changed();
         }
+        // Status updates come from Klippy, so it is alive again.
+        if (klippy_restart_unanswered_) {
+            klippy_restart_unanswered_ = false;
+            mark_changed();
+        }
         return;
     }
 
@@ -411,6 +416,9 @@ bool MoonrakerSession::klippy_unresponsive() const {
         case SessionState::WaitingKlippy:
             return klippy_restart_unanswered_ || now_ - waiting_since_ >= options_.klippy_stuck_timeout;
         case SessionState::KlippyError:
+        case SessionState::Ready:
+            // A Klippy that hangs while ready may never send a disconnect / shutdown notification,
+            // so an unanswered restart is the only sign of it.
             return klippy_restart_unanswered_;
         default:
             return false;
@@ -444,7 +452,8 @@ void MoonrakerSession::set_state(SessionState state) {
         if (state == SessionState::WaitingKlippy) {
             waiting_since_ = now_;
         }
-        // Only a Klippy that is still not ready keeps an unanswered restart relevant.
+        // Reaching Ready (or losing Moonraker) means the unanswered restart no longer applies;
+        // a stuck Klippy moving between waiting and error keeps it.
         if (state != SessionState::WaitingKlippy && state != SessionState::KlippyError) {
             klippy_restart_unanswered_ = false;
         }

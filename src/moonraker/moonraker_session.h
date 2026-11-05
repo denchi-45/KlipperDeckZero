@@ -91,7 +91,8 @@ public:
     // which recovers a Klippy that no longer answers Moonraker (where RESTART would time out).
     void restart_klipper_service(ResultHandler handler = {});
     // True while Moonraker answers but Klippy does not: it has been starting / disconnected for
-    // klippy_stuck_timeout, or a RESTART / FIRMWARE_RESTART got no answer.
+    // klippy_stuck_timeout, or a RESTART / FIRMWARE_RESTART got no answer (also while Ready, until
+    // a status update shows Klippy is alive).
     bool klippy_unresponsive() const;
     void call(const std::string& method, Json params, ResultHandler handler = {},
               std::chrono::milliseconds timeout = JsonRpcClient::kDefaultTimeout);

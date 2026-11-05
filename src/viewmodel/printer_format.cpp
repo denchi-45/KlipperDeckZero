@@ -145,17 +145,23 @@ ConnectionOverlay connection_overlay(moonraker::SessionState session,
     // Moonraker is reachable, so Klipper itself can be restarted from here.
     constexpr const char* kRestartHint = "R: restart  F: firmware restart  S: settings";
 
-    const bool klippy_down =
-        session == moonraker::SessionState::WaitingKlippy || session == moonraker::SessionState::KlippyError;
-    if (klippy_down && klippy_unresponsive) {
+    const bool moonraker_up = session == moonraker::SessionState::WaitingKlippy ||
+                              session == moonraker::SessionState::KlippyError ||
+                              session == moonraker::SessionState::Ready;
+    if (moonraker_up && klippy_unresponsive) {
         // RESTART / FIRMWARE_RESTART go through Klippy and would time out; only its service restart helps.
-        return {true,
-                "Klipper not responding",
-                session == moonraker::SessionState::KlippyError && !printer.state_message.empty()
-                    ? printer.state_message
-                    : std::string("Klippy state: ") + model::to_string(printer.klippy_state),
-                Tone::Error,
-                "R: restart Klipper service  S: settings"};
+        std::string detail;
+        if (session == moonraker::SessionState::Ready) {
+            // Klippy hung while ready: the last reported state would still say "ready".
+            detail = "No reply to the restart";
+        }
+        else if (session == moonraker::SessionState::KlippyError && !printer.state_message.empty()) {
+            detail = printer.state_message;
+        }
+        else {
+            detail = std::string("Klippy state: ") + model::to_string(printer.klippy_state);
+        }
+        return {true, "Klipper not responding", detail, Tone::Error, "R: restart Klipper service  S: settings"};
     }
 
     switch (session) {

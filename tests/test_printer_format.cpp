@@ -114,6 +114,14 @@ TEST_CASE("format: connection overlay") {
     CHECK(stuck.tone == format::Tone::Error);
     CHECK_EQ(stuck.hint, std::string("R: restart Klipper service  S: settings"));
 
+    // Klippy hung while ready: the overlay covers the stale status.
+    printer.klippy_state = model::KlippyState::Ready;
+    const auto hung = format::connection_overlay(SessionState::Ready, printer, "ws://x", "", true);
+    CHECK(hung.visible);
+    CHECK_EQ(hung.title, std::string("Klipper not responding"));
+    CHECK_EQ(hung.detail, std::string("No reply to the restart"));
+    CHECK_EQ(hung.hint, stuck.hint);
+
     // Without a connection to Moonraker the flag cannot apply.
     CHECK_EQ(format::connection_overlay(SessionState::Connecting, printer, "ws://x", "", true).hint,
              std::string("S: connection settings"));
