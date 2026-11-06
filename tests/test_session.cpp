@@ -428,13 +428,33 @@ TEST_CASE("session: klippy stuck in startup becomes unresponsive") {
     CHECK(f.session.klippy_unresponsive());
     CHECK(f.session.revision() > before);
 
+    // The last server.info retry is still pending.
+    const auto info_index = f.shared.sent.size() - 1;
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+
     f.session.restart_klipper_service();
     CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
     CHECK_EQ(f.last_sent()["params"]["service"].get<std::string>(), std::string("klipper"));
-    // The restarted Klippy gets a fresh timeout.
+    // Nothing is cleared until Moonraker confirms the restart.
+    CHECK(f.session.klippy_unresponsive());
+    reply(f.shared, f.last_sent(), json::object());
+    f.poll();
     CHECK(!f.session.klippy_unresponsive());
-    f.poll(29999ms);
+
+    // The restarted Klippy gets a fresh full timeout.
+    reply(f.shared, f.shared.sent[info_index], json{{"klippy_state", "startup"}});
+    f.poll();
+    for (int i = 0; i < 14; ++i) {
+        f.poll(2000ms);
+        CHECK_EQ(f.last_method(), std::string("server.info"));
+        reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+        f.poll();
+    }
+    f.poll(1999ms);
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
     CHECK(!f.session.klippy_unresponsive());
+    f.poll(1ms);
+    CHECK(f.session.klippy_unresponsive());
 }
 
 TEST_CASE("session: unanswered firmware restart marks klippy unresponsive until ready") {
@@ -487,7 +507,80 @@ TEST_CASE("session: unanswered restart while ready offers the service restart") 
 
     f.session.restart_klipper_service();
     CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+    CHECK(f.session.klippy_unresponsive());
+    reply(f.shared, f.last_sent(), json::object());
+    f.poll();
     CHECK(!f.session.klippy_unresponsive());
+}
+
+TEST_CASE("session: rejected service restart keeps klippy unresponsive") {
+    Fixture f;
+    f.reach_ready();
+    f.session.restart();
+    f.poll(10000ms);
+    CHECK(f.session.klippy_unresponsive());
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+
+    bool answered = false;
+    f.session.restart_klipper_service([&](const moonraker::RpcResponse& response) {
+        answered = !response.ok && !moonraker::is_no_response(response);
+    });
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+    // Even with a code that collides with the local timeout, a server reply is a rejection.
+    reply_error(f.shared, f.last_sent(), moonraker::kErrorTimeout, "Unauthorized");
+    f.poll();
+    CHECK(answered);
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK(f.session.klippy_unresponsive());
+
+    // The user can still retry the service restart.
+    const auto sent_before = f.shared.sent.size();
+    f.session.restart_klipper_service();
+    CHECK_EQ(f.shared.sent.size(), sent_before + 1);
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+}
+
+TEST_CASE("session: unanswered service restart keeps klippy unresponsive") {
+    Fixture f;
+    f.reach_ready();
+    f.session.restart();
+    f.poll(10000ms);
+    CHECK(f.session.klippy_unresponsive());
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+
+    bool timed_out = false;
+    f.session.restart_klipper_service([&](const moonraker::RpcResponse& response) {
+        timed_out = moonraker::is_no_response(response);
+    });
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+    f.poll(10000ms);
+    CHECK(timed_out);
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK(f.session.klippy_unresponsive());
+
+    f.session.restart_klipper_service();
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+}
+
+TEST_CASE("session: rejected service restart while klippy is stuck keeps the expired timeout") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+    f.poll();
+    for (int i = 0; i < 15; ++i) {
+        f.poll(2000ms);
+        reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+        f.poll();
+    }
+    CHECK(f.session.klippy_unresponsive());
+
+    f.session.restart_klipper_service();
+    reply_error(f.shared, f.last_sent(), 500, "Service restart failed");
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    CHECK(f.session.klippy_unresponsive());
 }
 
 TEST_CASE("session: status update after an unanswered restart clears unresponsive") {

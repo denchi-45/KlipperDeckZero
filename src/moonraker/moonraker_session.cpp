@@ -404,11 +404,21 @@ void MoonrakerSession::firmware_restart(ResultHandler handler) {
 }
 
 void MoonrakerSession::restart_klipper_service(ResultHandler handler) {
-    // Give the new Klippy process the full stuck timeout before calling it unresponsive again.
-    klippy_restart_unanswered_ = false;
-    waiting_since_ = now_;
-    mark_changed();
-    call("machine.services.restart", {{"service", "klipper"}}, std::move(handler));
+    // Only a successful restart clears the unresponsive state: after a rejected or unanswered
+    // request Klippy is still hung, and the user must be able to try again.
+    const auto epoch = connection_epoch_;
+    call("machine.services.restart", {{"service", "klipper"}},
+         [this, epoch, handler = std::move(handler)](const RpcResponse& response) {
+             if (epoch == connection_epoch_ && response.ok) {
+                 // Give the new Klippy process the full stuck timeout before calling it unresponsive again.
+                 klippy_restart_unanswered_ = false;
+                 waiting_since_ = now_;
+                 mark_changed();
+             }
+             if (handler) {
+                 handler(response);
+             }
+         });
 }
 
 bool MoonrakerSession::klippy_unresponsive() const {

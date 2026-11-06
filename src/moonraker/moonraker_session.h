@@ -132,7 +132,7 @@ private:
     bool probe_pending_{false};
     // Set from a response callback (inside client_.poll()); acted on afterwards in poll().
     bool liveness_failed_{false};
-    // When the session last entered WaitingKlippy (or a Klipper service restart was requested).
+    // When the session last entered WaitingKlippy (or a Klipper service restart succeeded).
     Clock::time_point waiting_since_{};
     // A RESTART / FIRMWARE_RESTART timed out; cleared once Klippy is ready or reconnecting.
     bool klippy_restart_unanswered_{false};
