@@ -205,6 +205,9 @@ void Logger::log(LogLevel level,
                prefix.c_str(),
                msg.c_str());
     }
+    // On the device stdout is a pipe to the launcher's journal, which is block buffered:
+    // without a flush the lines show up minutes late, or are lost if the app is killed.
+    fflush(stdout);
 }
 
 } // namespace logger
