@@ -117,7 +117,13 @@ private:
     void set_state(SessionState state);
     void query_system_info();
     static std::string klipper_service_from(const Json& result);
-    void forget_klipper_service();
+    // Klippy has been identified by Moonraker (Ready, or it reported an error / shutdown).
+    bool klippy_identified() const;
+    // A RESTART / FIRMWARE_RESTART went unanswered and nothing has shown Klippy alive since.
+    bool restart_unanswered() const {
+        return unanswered_through_ > restarts_settled_through_;
+    }
+    void settle_restarts_through(uint32_t seq);
     void set_error(const std::string& message);
     void clear_klippy_restart_unanswered();
     void mark_changed();
@@ -143,17 +149,17 @@ private:
     bool liveness_failed_{false};
     // When the session last entered WaitingKlippy (or a Klipper service restart succeeded).
     Clock::time_point waiting_since_{};
-    // A RESTART / FIRMWARE_RESTART timed out; cleared once Klippy is ready or reconnecting.
-    bool klippy_restart_unanswered_{false};
-    // Number of the last watched RESTART / FIRMWARE_RESTART, and the highest number whose timeout
-    // no longer counts because Klippy has shown it is alive since.
+    // Watched RESTART / FIRMWARE_RESTART requests are numbered: restart_seq_ is the last one sent,
+    // unanswered_through_ the highest that went unanswered, and restarts_settled_through_ the
+    // highest whose outcome no longer counts because Klippy has shown it is alive since.
     uint32_t restart_seq_{0};
+    uint32_t unanswered_through_{0};
     uint32_t restarts_settled_through_{0};
+    // The verified service name (empty: unknown), and the machine.system_info request state.
     std::string klipper_service_;
-    // machine.system_info was asked for the current Klippy connection.
-    bool klipper_service_checked_{false};
-    // Bumped when the Klippy connection changes, so an older system_info reply is dropped.
-    uint32_t klippy_connection_generation_{0};
+    bool system_info_pending_{false};
+    bool system_info_retry_scheduled_{false};
+    Clock::time_point system_info_retry_at_{};
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.

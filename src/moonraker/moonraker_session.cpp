@@ -90,6 +90,10 @@ void MoonrakerSession::poll(Clock::time_point now) {
         server_info_scheduled_ = false;
         query_server_info();
     }
+    if (system_info_retry_scheduled_ && now >= system_info_retry_at_ && klippy_identified() &&
+        !system_info_pending_ && klipper_service_.empty()) {
+        query_system_info();
+    }
     if (state_ == SessionState::Ready && !probe_pending_ &&
         now - client_.last_message_at() >= options_.liveness_timeout) {
         probe_connection();
@@ -151,7 +155,12 @@ void MoonrakerSession::on_connection(bool connected, const std::string& reason) 
     probe_pending_ = false;
     liveness_failed_ = false;
     // The service belongs to the Moonraker we talk to, which may differ after a reconnect.
-    forget_klipper_service();
+    system_info_pending_ = false;
+    system_info_retry_scheduled_ = false;
+    if (!klipper_service_.empty()) {
+        klipper_service_.clear();
+        mark_changed();
+    }
 
     if (connected) {
         last_error_.clear();
@@ -193,22 +202,35 @@ void MoonrakerSession::identify() {
 
 void MoonrakerSession::query_system_info() {
     // A host can run several Klipper instances (klipper, klipper-2, ...); only the one behind
-    // this Moonraker may be restarted. Moonraker learns the unit name when Klippy connects and
-    // reports a default "klipper" before that, so this is only asked once Klippy is identified.
+    // this Moonraker may be restarted. Moonraker learns the unit name while it sets up the Klippy
+    // connection and reports a default "klipper" before that (also while it says "startup"), so
+    // this is only asked once Klippy is ready or has reported an error. The name stays valid
+    // until the Moonraker connection changes: one Moonraker always serves the same unit.
     // Without a name, the service restart is not offered.
-    klipper_service_checked_ = true;
+    system_info_pending_ = true;
+    system_info_retry_scheduled_ = false;
     const auto epoch = connection_epoch_;
-    const auto klippy_generation = klippy_connection_generation_;
-    client_.call("machine.system_info", [this, epoch, klippy_generation](const RpcResponse& response) {
-        if (epoch != connection_epoch_ || klippy_generation != klippy_connection_generation_ || !response.ok) {
+    client_.call("machine.system_info", [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
             return;
         }
-        const auto name = klipper_service_from(response.result);
-        if (!name.empty() && name != klipper_service_) {
+        system_info_pending_ = false;
+        const auto name = response.ok ? klipper_service_from(response.result) : std::string();
+        if (name.empty()) {
+            // Timeouts and errors can be transient: ask again later.
+            system_info_retry_scheduled_ = true;
+            system_info_retry_at_ = now_ + options_.klippy_retry_delay * 5;
+            return;
+        }
+        if (klipper_service_ != name) {
             klipper_service_ = name;
             mark_changed();
         }
     });
+}
+
+bool MoonrakerSession::klippy_identified() const {
+    return state_ == SessionState::Ready || state_ == SessionState::KlippyError;
 }
 
 std::string MoonrakerSession::klipper_service_from(const Json& result) {
@@ -229,15 +251,6 @@ std::string MoonrakerSession::klipper_service_from(const Json& result) {
         return {};
     }
     return klipper->get<std::string>();
-}
-
-void MoonrakerSession::forget_klipper_service() {
-    ++klippy_connection_generation_;
-    klipper_service_checked_ = false;
-    if (!klipper_service_.empty()) {
-        klipper_service_.clear();
-        mark_changed();
-    }
 }
 
 void MoonrakerSession::query_server_info() {
@@ -262,14 +275,6 @@ void MoonrakerSession::query_server_info() {
         if (printer_.klippy_state != klippy) {
             printer_.klippy_state = klippy;
             mark_changed();
-        }
-        // These states come from Klippy itself, so Moonraker has identified it by now.
-        const bool klippy_identified = klippy == model::KlippyState::Startup ||
-                                       klippy == model::KlippyState::Ready ||
-                                       klippy == model::KlippyState::Error ||
-                                       klippy == model::KlippyState::Shutdown;
-        if (klippy_identified && !klipper_service_checked_) {
-            query_system_info();
         }
 
         switch (klippy) {
@@ -378,11 +383,11 @@ void MoonrakerSession::on_notification(const std::string& method, const Json& pa
         if (params.is_array() && !params.empty() && apply_status(printer_, params[0])) {
             mark_changed();
         }
-        // Status updates come from Klippy, so it is alive again. They do not invalidate restarts
-        // still waiting for an answer: the update may have been queued before the restart was sent.
-        if (klippy_restart_unanswered_) {
-            klippy_restart_unanswered_ = false;
-            mark_changed();
+        // Status updates come from Klippy, so it is alive again. They settle only the restarts that
+        // already went unanswered, not the ones still waiting: the update may have been queued
+        // before those were sent.
+        if (restart_unanswered()) {
+            settle_restarts_through(unanswered_through_);
         }
         return;
     }
@@ -419,8 +424,6 @@ void MoonrakerSession::on_notification(const std::string& method, const Json& pa
     }
 
     if (method == "notify_klippy_disconnected") {
-        // Ask again once the next Klippy is identified.
-        forget_klipper_service();
         printer_.klippy_state = model::KlippyState::Disconnected;
         set_state(SessionState::WaitingKlippy);
         schedule_server_info(options_.klippy_retry_delay);
@@ -495,12 +498,12 @@ void MoonrakerSession::restart_klipper_service(ResultHandler handler) {
 bool MoonrakerSession::klippy_unresponsive() const {
     switch (state_) {
         case SessionState::WaitingKlippy:
-            return klippy_restart_unanswered_ || now_ - waiting_since_ >= options_.klippy_stuck_timeout;
+            return restart_unanswered() || now_ - waiting_since_ >= options_.klippy_stuck_timeout;
         case SessionState::KlippyError:
         case SessionState::Ready:
             // A Klippy that hangs while ready may never send a disconnect / shutdown notification,
             // so an unanswered restart is the only sign of it.
-            return klippy_restart_unanswered_;
+            return restart_unanswered();
         default:
             return false;
     }
@@ -516,16 +519,15 @@ MoonrakerSession::ResultHandler MoonrakerSession::watch_klippy_restart(ResultHan
     return [this, epoch, seq, handler = std::move(handler)](const RpcResponse& response) {
         if (epoch == connection_epoch_) {
             if (response.ok) {
-                // Klippy answered this one: earlier timeouts no longer apply, later requests still do.
-                restarts_settled_through_ = std::max(restarts_settled_through_, seq);
-                if (klippy_restart_unanswered_) {
-                    klippy_restart_unanswered_ = false;
+                // Klippy answered this one: it and earlier requests are settled, later ones are not.
+                settle_restarts_through(seq);
+            }
+            else if (is_no_response(response) && seq > restarts_settled_through_ && seq > unanswered_through_) {
+                const bool was_unanswered = restart_unanswered();
+                unanswered_through_ = seq;
+                if (!was_unanswered) {
                     mark_changed();
                 }
-            }
-            else if (is_no_response(response) && seq > restarts_settled_through_) {
-                klippy_restart_unanswered_ = true;
-                mark_changed();
             }
         }
         if (handler) {
@@ -553,14 +555,21 @@ void MoonrakerSession::set_state(SessionState state) {
         }
         state_ = state;
         mark_changed();
+        if (klippy_identified() && klipper_service_.empty() && !system_info_pending_) {
+            query_system_info();
+        }
     }
 }
 
 void MoonrakerSession::clear_klippy_restart_unanswered() {
     // Also invalidates the restarts still waiting for an answer: Klippy has come back since they were sent.
-    restarts_settled_through_ = restart_seq_;
-    if (klippy_restart_unanswered_) {
-        klippy_restart_unanswered_ = false;
+    settle_restarts_through(restart_seq_);
+}
+
+void MoonrakerSession::settle_restarts_through(uint32_t seq) {
+    const bool was_unanswered = restart_unanswered();
+    restarts_settled_through_ = std::max(restarts_settled_through_, seq);
+    if (was_unanswered != restart_unanswered()) {
         mark_changed();
     }
 }
