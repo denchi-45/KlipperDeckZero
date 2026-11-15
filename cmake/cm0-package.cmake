@@ -10,9 +10,8 @@ include(GNUInstallDirs)
 set(APP_DISPLAY_NAME "KlipperDeckZero" CACHE STRING "Human-readable application name used by launchers and package filename")
 set(APP_DEBIAN_REVISION "rev1" CACHE STRING "Debian package revision/vendor suffix")
 set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
-# Deliberately a placeholder: the store rejects packages whose Maintainer is
-# still a template/M5Stack identity, so set your own name and email here.
-set(APP_MAINTAINER "TODO Your Name <todo@example.invalid>" CACHE STRING "Debian package maintainer")
+# The store rejects packages whose Maintainer is still a template/M5Stack identity.
+set(APP_MAINTAINER "denchi-45 <56984245+denchi-45@users.noreply.github.com>" CACHE STRING "Debian package maintainer")
 set(APP_PACKAGE_DESCRIPTION "Klipper/Moonraker printer control panel for CardputerZero" CACHE STRING "Debian package summary")
 set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
 
