@@ -111,6 +111,7 @@ private:
     ResultHandler watch_klippy_restart(ResultHandler handler);
     void set_state(SessionState state);
     void set_error(const std::string& message);
+    void clear_klippy_restart_unanswered();
     void mark_changed();
 
     JsonRpcClient client_;
@@ -136,6 +137,8 @@ private:
     Clock::time_point waiting_since_{};
     // A RESTART / FIRMWARE_RESTART timed out; cleared once Klippy is ready or reconnecting.
     bool klippy_restart_unanswered_{false};
+    // Bumped whenever Klippy is known to be alive, so older restart timeouts are ignored.
+    uint32_t klippy_recovery_generation_{0};
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.

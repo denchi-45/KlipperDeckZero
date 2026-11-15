@@ -319,10 +319,7 @@ void MoonrakerSession::on_notification(const std::string& method, const Json& pa
             mark_changed();
         }
         // Status updates come from Klippy, so it is alive again.
-        if (klippy_restart_unanswered_) {
-            klippy_restart_unanswered_ = false;
-            mark_changed();
-        }
+        clear_klippy_restart_unanswered();
         return;
     }
 
@@ -411,7 +408,7 @@ void MoonrakerSession::restart_klipper_service(ResultHandler handler) {
          [this, epoch, handler = std::move(handler)](const RpcResponse& response) {
              if (epoch == connection_epoch_ && response.ok) {
                  // Give the new Klippy process the full stuck timeout before calling it unresponsive again.
-                 klippy_restart_unanswered_ = false;
+                 clear_klippy_restart_unanswered();
                  waiting_since_ = now_;
                  mark_changed();
              }
@@ -438,9 +435,12 @@ bool MoonrakerSession::klippy_unresponsive() const {
 MoonrakerSession::ResultHandler MoonrakerSession::watch_klippy_restart(ResultHandler handler) {
     // Moonraker forwards these to Klippy; no answer means Klippy (not Moonraker) is stuck,
     // since a dead link is caught by the liveness check instead.
+    // A timeout that arrives after Klippy has recovered is stale and must not mark it unresponsive.
     const auto epoch = connection_epoch_;
-    return [this, epoch, handler = std::move(handler)](const RpcResponse& response) {
-        if (epoch == connection_epoch_ && !response.ok && is_no_response(response)) {
+    const auto generation = klippy_recovery_generation_;
+    return [this, epoch, generation, handler = std::move(handler)](const RpcResponse& response) {
+        if (epoch == connection_epoch_ && generation == klippy_recovery_generation_ && !response.ok &&
+            is_no_response(response)) {
             klippy_restart_unanswered_ = true;
             mark_changed();
         }
@@ -465,9 +465,18 @@ void MoonrakerSession::set_state(SessionState state) {
         // Reaching Ready (or losing Moonraker) means the unanswered restart no longer applies;
         // a stuck Klippy moving between waiting and error keeps it.
         if (state != SessionState::WaitingKlippy && state != SessionState::KlippyError) {
-            klippy_restart_unanswered_ = false;
+            clear_klippy_restart_unanswered();
         }
         state_ = state;
+        mark_changed();
+    }
+}
+
+void MoonrakerSession::clear_klippy_restart_unanswered() {
+    // Also invalidates the restarts still waiting for an answer: Klippy has shown it is alive since.
+    ++klippy_recovery_generation_;
+    if (klippy_restart_unanswered_) {
+        klippy_restart_unanswered_ = false;
         mark_changed();
     }
 }

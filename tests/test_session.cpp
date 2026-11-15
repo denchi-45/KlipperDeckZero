@@ -583,6 +583,44 @@ TEST_CASE("session: rejected service restart while klippy is stuck keeps the exp
     CHECK(f.session.klippy_unresponsive());
 }
 
+TEST_CASE("session: restart timeout after klippy already recovered is ignored") {
+    Fixture f;
+    f.reach_ready();
+
+    bool timed_out = false;
+    f.session.restart([&](const moonraker::RpcResponse& response) {
+        timed_out = moonraker::is_no_response(response);
+    });
+    CHECK_EQ(f.last_method(), std::string("printer.restart"));
+
+    // Klippy restarts and is ready again before the restart request times out.
+    f.poll(1000ms);
+    notify(f.shared, "notify_klippy_disconnected", json());
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    notify(f.shared, "notify_klippy_ready", json());
+    f.poll();
+    CHECK_EQ(f.last_method(), std::string("server.info"));
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"status", {{"heaters", {{"available_sensors", json::array()}}}}}});
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"status", json::object()}});
+    f.poll();
+    CHECK(f.session.session_state() == SessionState::Ready);
+
+    // The original request's late timeout must not mark the recovered Klippy unresponsive.
+    f.poll(10000ms);
+    CHECK(timed_out);
+    CHECK(!f.session.klippy_unresponsive());
+    if (f.last_method() == "server.info") {
+        reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+        f.poll();
+    }
+    CHECK(f.session.session_state() == SessionState::Ready);
+    CHECK(!f.session.klippy_unresponsive());
+}
+
 TEST_CASE("session: status update after an unanswered restart clears unresponsive") {
     Fixture f;
     f.reach_ready();
