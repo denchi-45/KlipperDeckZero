@@ -202,7 +202,8 @@ void BaseViewModel::update_printer(const moonraker::MoonrakerSession& session) {
 
     const auto overlay =
         format::connection_overlay(
-            state, printer, session.endpoint(), session.last_error(), session.klippy_unresponsive());
+            state, printer, session.endpoint(), session.last_error(), session.klippy_unresponsive(),
+            !session.klipper_service().empty());
     set_if_changed(overlay_title_, overlay.title);
     set_if_changed(overlay_detail_, overlay.detail);
     set_if_changed(overlay_tone_, tone_to_int(overlay.tone));

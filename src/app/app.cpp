@@ -152,7 +152,14 @@ private:
 
         const bool klipper = kind == RestartKind::Klipper;
         // A stuck Klippy never answers RESTART / FIRMWARE_RESTART; R restarts its service instead.
-        const bool service = session_->klippy_unresponsive();
+        const bool unresponsive = session_->klippy_unresponsive();
+        if (unresponsive && session_->klipper_service().empty()) {
+            // Not knowing which service runs this Klipper, restarting a guess could stop another printer.
+            restart_confirm_.cancel();
+            toast_->show("Klipper not responding: restart it on its host", view::widgets::ToastTone::Warning, 4000);
+            return;
+        }
+        const bool service = unresponsive;
         if (service && !klipper) {
             restart_confirm_.cancel();
             toast_->show_highlighted("Klipper not responding: press ",
@@ -186,7 +193,8 @@ private:
                 return;
             }
             LOG_WARN("restart failed: {}", response.error.message);
-            if (moonraker::is_no_response(response) && session_ && session_->klippy_unresponsive()) {
+            if (moonraker::is_no_response(response) && session_ && session_->klippy_unresponsive() &&
+                !session_->klipper_service().empty()) {
                 toast_->show_highlighted("Klipper not responding: press ",
                                          "R",
                                          " twice",

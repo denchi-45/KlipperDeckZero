@@ -87,13 +87,18 @@ public:
     void restart(ResultHandler handler = {});
     // FIRMWARE_RESTART: also resets the MCUs, which recovers an MCU shutdown.
     void firmware_restart(ResultHandler handler = {});
-    // machine.services.restart for the klipper service: restarts the Klippy process itself,
+    // machine.services.restart for klipper_service(): restarts the Klippy process itself,
     // which recovers a Klippy that no longer answers Moonraker (where RESTART would time out).
     void restart_klipper_service(ResultHandler handler = {});
     // True while Moonraker answers but Klippy does not: it has been starting / disconnected for
     // klippy_stuck_timeout, or a RESTART / FIRMWARE_RESTART got no answer (also while Ready, until
     // a status update shows Klippy is alive).
     bool klippy_unresponsive() const;
+    // The systemd service of the Klipper behind this Moonraker (machine.system_info), or empty
+    // when unknown; restart_klipper_service() needs it.
+    const std::string& klipper_service() const {
+        return klipper_service_;
+    }
     void call(const std::string& method, Json params, ResultHandler handler = {},
               std::chrono::milliseconds timeout = JsonRpcClient::kDefaultTimeout);
 
@@ -110,6 +115,7 @@ private:
     void force_reconnect(const std::string& reason);
     ResultHandler watch_klippy_restart(ResultHandler handler);
     void set_state(SessionState state);
+    void query_system_info();
     void set_error(const std::string& message);
     void clear_klippy_restart_unanswered();
     void mark_changed();
@@ -139,6 +145,7 @@ private:
     bool klippy_restart_unanswered_{false};
     // Bumped whenever Klippy is known to be alive, so older restart timeouts are ignored.
     uint32_t klippy_recovery_generation_{0};
+    std::string klipper_service_;
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.

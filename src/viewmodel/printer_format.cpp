@@ -141,7 +141,8 @@ ConnectionOverlay connection_overlay(moonraker::SessionState session,
                                      const model::PrinterState& printer,
                                      const std::string& endpoint,
                                      const std::string& last_error,
-                                     bool klippy_unresponsive) {
+                                     bool klippy_unresponsive,
+                                     bool service_restart_available) {
     // Moonraker is reachable, so Klipper itself can be restarted from here.
     constexpr const char* kRestartHint = "R: restart  F: firmware restart  S: settings";
 
@@ -161,7 +162,12 @@ ConnectionOverlay connection_overlay(moonraker::SessionState session,
         else {
             detail = std::string("Klippy state: ") + model::to_string(printer.klippy_state);
         }
-        return {true, "Klipper not responding", detail, Tone::Error, "R: restart Klipper service  S: settings"};
+        return {true,
+                "Klipper not responding",
+                detail,
+                Tone::Error,
+                service_restart_available ? "R: restart Klipper service  S: settings"
+                                          : "Restart Klipper on its host  S: settings"};
     }
 
     switch (session) {
