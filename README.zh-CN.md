@@ -198,7 +198,7 @@ sudo apt install ./klipper-deck-zero_0.1.0-rev1_arm64.deb
 
 <img src="docs/images/screen-settings.png" width="640" alt="连接设置界面。Connect to Network、Host、Port、API key、Save & connect，最下一行为状态标签。导航栏为第 2 层（2/2）">
 
-`↑`/`↓` 选择项目，`Enter` 编辑或确认，`←`/`→` 切换选项，`ESC` 取消编辑或返回。连接目标可以选择 “This device”（Unix 套接字）或 “Network”（WebSocket，需要 Host / Port / API key），选择 “Save & connect” 保存并重新连接。最下一行始终显示状态标签，旁边通常显示连接状态，有保存结果或输入错误时显示相应消息。
+`↑`/`↓` 选择项目，`Enter` 编辑或确认，`←`/`→` 切换选项，`ESC` 取消编辑或返回。连接目标可以选择 “This device”（Unix 套接字）或 “Network”（WebSocket，填写 Host / Port；未加入 `trusted_clients` 时才需要 API key），选择 “Save & connect” 保存并重新连接。最下一行始终显示状态标签，旁边通常显示连接状态，有保存结果或输入错误时显示相应消息。
 
 ## 配置文件
 

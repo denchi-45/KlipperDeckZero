@@ -198,7 +198,7 @@ When an action is not run (the reason is shown in a toast and on the bottom line
 
 <img src="docs/images/screen-settings.png" width="640" alt="Connection settings. Connect to Network, Host, Port and API key, Save & connect, and the state badge on the bottom line. The nav bar shows layer 2 (2/2)">
 
-`↑`/`↓` select an item, `Enter` edits or confirms, `←`/`→` change an option, and `ESC` cancels the edit or goes back. You can connect to "This device" (Unix socket) or "Network" (WebSocket, with Host / Port / API key); "Save & connect" saves the settings and reconnects. The bottom line always shows the state badge, and next to it the connection state, or the save result or input error while there is one.
+`↑`/`↓` select an item, `Enter` edits or confirms, `←`/`→` change an option, and `ESC` cancels the edit or goes back. You can connect to "This device" (Unix socket) or "Network" (WebSocket: Host and Port, plus an API key only if the CardputerZero is not in `trusted_clients`); "Save & connect" saves the settings and reconnects. The bottom line always shows the state badge, and next to it the connection state, or the save result or input error while there is one.
 
 ## Configuration file
 
