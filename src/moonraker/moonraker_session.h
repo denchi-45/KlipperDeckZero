@@ -116,6 +116,8 @@ private:
     ResultHandler watch_klippy_restart(ResultHandler handler);
     void set_state(SessionState state);
     void query_system_info();
+    static std::string klipper_service_from(const Json& result);
+    void forget_klipper_service();
     void set_error(const std::string& message);
     void clear_klippy_restart_unanswered();
     void mark_changed();
@@ -143,9 +145,15 @@ private:
     Clock::time_point waiting_since_{};
     // A RESTART / FIRMWARE_RESTART timed out; cleared once Klippy is ready or reconnecting.
     bool klippy_restart_unanswered_{false};
-    // Bumped whenever Klippy is known to be alive, so older restart timeouts are ignored.
-    uint32_t klippy_recovery_generation_{0};
+    // Number of the last watched RESTART / FIRMWARE_RESTART, and the highest number whose timeout
+    // no longer counts because Klippy has shown it is alive since.
+    uint32_t restart_seq_{0};
+    uint32_t restarts_settled_through_{0};
     std::string klipper_service_;
+    // machine.system_info was asked for the current Klippy connection.
+    bool klipper_service_checked_{false};
+    // Bumped when the Klippy connection changes, so an older system_info reply is dropped.
+    uint32_t klippy_connection_generation_{0};
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.

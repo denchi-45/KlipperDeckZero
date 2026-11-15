@@ -54,8 +54,7 @@ struct Fixture {
     }
 
     // Runs the startup sequence up to the point where server.info is pending.
-    // klipper_service is what machine.system_info reports in instance_ids (empty: not reported).
-    void connect_and_identify(const std::string& klipper_service = "klipper") {
+    void connect_and_identify() {
         session.start();
         inject(shared, TransportEventType::Opened);
         poll();
@@ -63,25 +62,35 @@ struct Fixture {
         reply(shared, last_sent(), json{{"connection_id", 1}});
         poll();
         CHECK_EQ(last_method(), std::string("server.info"));
-        const auto system_info = last_sent_of("machine.system_info");
-        CHECK(!system_info.is_null());
+        // The service is only asked once Klippy is identified.
+        CHECK(last_sent_of("machine.system_info").is_null());
+    }
+
+    // Answers the latest machine.system_info request; klipper_service is what it reports in
+    // instance_ids (empty: not reported).
+    void answer_system_info(const std::string& klipper_service = "klipper") {
+        const auto request = last_sent_of("machine.system_info");
+        CHECK(!request.is_null());
         json instance_ids = json::object();
         if (!klipper_service.empty()) {
             instance_ids["klipper"] = klipper_service;
             instance_ids["moonraker"] = "moonraker";
         }
-        reply(shared, system_info, json{{"system_info", {{"instance_ids", instance_ids}}}});
+        reply(shared, request, json{{"system_info", {{"instance_ids", instance_ids}}}});
         poll();
-        CHECK_EQ(session.klipper_service(), klipper_service);
     }
 
     // available_sensors is the printer's heaters.available_sensors list.
     void reach_ready(const json& available_sensors = json::array({"extruder"}),
                      const std::string& klipper_service = "klipper") {
-        connect_and_identify(klipper_service);
+        connect_and_identify();
         reply(shared, last_sent(), json{{"klippy_state", "ready"}});
         poll();
         CHECK_EQ(last_method(), std::string("printer.objects.query"));
+        const auto query = last_sent();
+        answer_system_info(klipper_service);
+        CHECK_EQ(session.klipper_service(), klipper_service);
+        CHECK(last_sent() == query);
         CHECK(last_sent()["params"]["objects"].contains("heaters"));
         reply(shared, last_sent(), json{{"status", {{"heaters", {{"available_sensors", available_sensors}}}}}});
         poll();
@@ -437,6 +446,9 @@ TEST_CASE("session: klippy stuck in startup becomes unresponsive") {
     f.poll();
     CHECK(f.session.session_state() == SessionState::WaitingKlippy);
     CHECK(!f.session.klippy_unresponsive());
+    // Klippy reports "startup", so it is identified and its service can be asked.
+    f.answer_system_info();
+    CHECK_EQ(f.session.klipper_service(), std::string("klipper"));
 
     // Keep answering server.info with "startup" so the link stays alive.
     for (int i = 0; i < 14; ++i) {
@@ -591,6 +603,7 @@ TEST_CASE("session: rejected service restart while klippy is stuck keeps the exp
     f.connect_and_identify();
     reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
     f.poll();
+    f.answer_system_info();
     for (int i = 0; i < 15; ++i) {
         f.poll(2000ms);
         reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
@@ -700,6 +713,124 @@ TEST_CASE("session: system_info of an earlier connection is dropped on reconnect
     inject(f.shared, TransportEventType::Closed, "gone");
     f.poll();
     CHECK(f.session.klipper_service().empty());
+}
+
+TEST_CASE("session: klipper service is asked only after klippy is identified") {
+    Fixture f;
+    f.connect_and_identify();
+    // Before Klippy is identified, Moonraker would report a default "klipper".
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "disconnected"}});
+    f.poll();
+    CHECK(f.last_sent_of("machine.system_info").is_null());
+    CHECK(f.session.klipper_service().empty());
+
+    notify(f.shared, "notify_klippy_ready", json());
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    f.answer_system_info("klipper-2");
+    CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
+}
+
+TEST_CASE("session: klipper service is asked again after klippy reconnects") {
+    Fixture f;
+    f.reach_ready(json::array({"extruder"}), "klipper-2");
+    const auto asked = f.shared.sent.size();
+
+    notify(f.shared, "notify_klippy_disconnected", json());
+    f.poll();
+    CHECK(f.session.klipper_service().empty());
+
+    notify(f.shared, "notify_klippy_ready", json());
+    f.poll();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+    f.poll();
+    const auto again = f.last_sent_of("machine.system_info");
+    CHECK(!again.is_null());
+    CHECK(f.shared.sent.size() > asked);
+    f.answer_system_info("klipper-2");
+    CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
+}
+
+TEST_CASE("session: system_info reply from before a klippy reconnect is dropped") {
+    Fixture f;
+    f.connect_and_identify();
+    reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+    f.poll();
+    const auto stale = f.last_sent_of("machine.system_info");
+    CHECK(!stale.is_null());
+
+    notify(f.shared, "notify_klippy_disconnected", json());
+    f.poll();
+    reply(f.shared, stale, json{{"system_info", {{"instance_ids", {{"klipper", "klipper"}}}}}});
+    f.poll();
+    CHECK(f.session.klipper_service().empty());
+}
+
+TEST_CASE("session: malformed system_info leaves the service unknown") {
+    const json replies[] = {
+        json{{"system_info", nullptr}},
+        json{{"system_info", {{"instance_ids", nullptr}}}},
+        json{{"system_info", {{"instance_ids", {{"klipper", 2}}}}}},
+        json::array(),
+        json("ok"),
+    };
+    for (const auto& result : replies) {
+        Fixture f;
+        f.connect_and_identify();
+        reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
+        f.poll();
+        reply(f.shared, f.last_sent_of("machine.system_info"), result);
+        f.poll();
+        CHECK(f.session.klipper_service().empty());
+        CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    }
+}
+
+TEST_CASE("session: an answered restart makes earlier restart timeouts stale") {
+    Fixture f;
+    f.reach_ready();
+
+    f.session.restart();
+    f.poll(1000ms);
+    f.session.restart();
+    reply(f.shared, f.last_sent(), json("ok"));
+    f.poll();
+    CHECK(!f.session.klippy_unresponsive());
+
+    // Only the first request times out; Klippy answered the second, so it is alive.
+    f.poll(9000ms);
+    CHECK(!f.session.klippy_unresponsive());
+}
+
+TEST_CASE("session: an answered restart clears an earlier timeout") {
+    Fixture f;
+    f.reach_ready();
+
+    f.session.restart();
+    f.poll(1000ms);
+    f.session.restart();
+    const auto second = f.last_sent();
+    f.poll(9000ms);
+    CHECK(f.session.klippy_unresponsive());
+
+    reply(f.shared, second, json("ok"));
+    f.poll();
+    CHECK(!f.session.klippy_unresponsive());
+}
+
+TEST_CASE("session: an answered restart keeps watching later requests") {
+    Fixture f;
+    f.reach_ready();
+
+    f.session.restart();
+    reply(f.shared, f.last_sent(), json("ok"));
+    f.poll();
+
+    // A request sent after that answer still counts when it times out.
+    f.session.restart();
+    f.poll(10000ms);
+    CHECK(f.session.klippy_unresponsive());
 }
 
 TEST_CASE("session: status update after an unanswered restart clears unresponsive") {
