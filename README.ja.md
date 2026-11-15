@@ -36,10 +36,10 @@ CardputerZero のアプリストアで「KlipperDeckZero」を探してインス
 
 ### .deb パッケージから
 
-[Releases](https://github.com/denchi-45/KlipperDeckZero/releases) から `KlipperDeckZero_<バージョン>_rev1_arm64.deb` をダウンロードして CardputerZero にコピーし、次のコマンドでインストールします。
+[Releases](https://github.com/denchi-45/KlipperDeckZero/releases) から `klipper-deck-zero_<バージョン>-rev1_arm64.deb` をダウンロードして CardputerZero にコピーし、次のコマンドでインストールします。
 
 ```sh
-sudo apt install ./KlipperDeckZero_0.1.0_rev1_arm64.deb
+sudo apt install ./klipper-deck-zero_0.1.0-rev1_arm64.deb
 ```
 
 インストールすると、ランチャーに KlipperDeckZero が出ます。自分でビルドする場合は「[開発](#開発)」を参照してください。
@@ -263,7 +263,7 @@ MSVC の場合は `win32-msvc` プリセット(`build/msvc`)を使います。
 ### 実機(CardputerZero)向けクロスビルド / パッケージ
 
 ```sh
-cmake --workflow --preset cp0-cross-package   # dist/KlipperDeckZero_*_arm64.deb
+cmake --workflow --preset cp0-cross-package   # dist/klipper-deck-zero_*_arm64.deb
 REMOTE_USER=pi REMOTE_HOST=192.168.1.20 ./deploy.sh
 ```
 

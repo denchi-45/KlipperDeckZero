@@ -32,7 +32,7 @@
     "license": "MIT",
     "source_repo": "https://github.com/denchi-45/KlipperDeckZero",
     "author": { "github": "denchi-45", "display_name": "denchi-45" },
-    "share_code": "TODO",
+    "share_code": "KDZ0",
     "permissions": {
       "camera": false,
       "microphone": false,

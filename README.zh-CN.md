@@ -36,10 +36,10 @@
 
 ### 从 .deb 安装包安装
 
-从 [Releases](https://github.com/denchi-45/KlipperDeckZero/releases) 下载 `KlipperDeckZero_<版本>_rev1_arm64.deb`，复制到 CardputerZero 上，然后执行：
+从 [Releases](https://github.com/denchi-45/KlipperDeckZero/releases) 下载 `klipper-deck-zero_<版本>-rev1_arm64.deb`，复制到 CardputerZero 上，然后执行：
 
 ```sh
-sudo apt install ./KlipperDeckZero_0.1.0_rev1_arm64.deb
+sudo apt install ./klipper-deck-zero_0.1.0-rev1_arm64.deb
 ```
 
 安装后，启动器中会出现 KlipperDeckZero。如需自己编译，请看[开发](#开发)。
@@ -262,7 +262,7 @@ cmake --build build/mingw64 --config Debug
 ### 为 CardputerZero 交叉编译和打包
 
 ```sh
-cmake --workflow --preset cp0-cross-package   # dist/KlipperDeckZero_*_arm64.deb
+cmake --workflow --preset cp0-cross-package   # dist/klipper-deck-zero_*_arm64.deb
 REMOTE_USER=pi REMOTE_HOST=192.168.1.20 ./deploy.sh
 ```
 
