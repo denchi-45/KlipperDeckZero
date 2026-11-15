@@ -117,8 +117,6 @@ private:
     void set_state(SessionState state);
     void query_system_info();
     static std::string klipper_service_from(const Json& result);
-    // Klippy has been identified by Moonraker (Ready, or it reported an error / shutdown).
-    bool klippy_identified() const;
     // A RESTART / FIRMWARE_RESTART went unanswered and nothing has shown Klippy alive since.
     bool restart_unanswered() const {
         return unanswered_through_ > restarts_settled_through_;
@@ -159,6 +157,9 @@ private:
     std::string klipper_service_;
     bool system_info_pending_{false};
     bool system_info_retry_scheduled_{false};
+    // Klippy has been identified (Ready, or it reported an error / shutdown) on this Moonraker
+    // connection, so Moonraker has learned the real unit name.
+    bool klippy_identified_{false};
     Clock::time_point system_info_retry_at_{};
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};

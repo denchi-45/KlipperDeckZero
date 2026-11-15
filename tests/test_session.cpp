@@ -823,6 +823,48 @@ TEST_CASE("session: unanswered system_info is asked again") {
     CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
 }
 
+TEST_CASE("session: failed system_info is retried after klippy disconnects") {
+    // Ready, the lookup fails (error or no answer), and Klippy goes away before the retry.
+    for (const bool time_out : {false, true}) {
+        for (const char* waiting_state : {"startup", "disconnected"}) {
+            Fixture f;
+            f.connect_and_identify();
+            f.finish_ready();
+            if (time_out) {
+                f.poll(10000ms);
+                if (f.last_method() == "server.info") {
+                    reply(f.shared, f.last_sent(), json{{"klippy_state", "ready"}});
+                    f.poll();
+                }
+            }
+            else {
+                reply_error(f.shared, f.last_sent(), 503, "Service unavailable");
+                f.poll();
+            }
+            CHECK(f.session.klipper_service().empty());
+            const auto failed = f.last_sent_of("machine.system_info");
+
+            notify(f.shared, "notify_klippy_disconnected", json());
+            f.poll();
+            CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+
+            // Moonraker keeps answering while Klippy stays away; the lookup is asked again.
+            bool asked_again = false;
+            for (int i = 0; i < 30 && !asked_again; ++i) {
+                f.poll(2000ms);
+                if (f.last_method() == "server.info") {
+                    reply(f.shared, f.last_sent(), json{{"klippy_state", waiting_state}});
+                    f.poll();
+                }
+                asked_again = f.last_sent_of("machine.system_info") != failed;
+            }
+            CHECK(asked_again);
+            f.answer_system_info("klipper-2");
+            CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
+        }
+    }
+}
+
 TEST_CASE("session: system_info reply from an earlier connection is dropped") {
     Fixture f;
     f.connect_and_identify();

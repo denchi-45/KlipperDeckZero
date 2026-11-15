@@ -90,7 +90,7 @@ void MoonrakerSession::poll(Clock::time_point now) {
         server_info_scheduled_ = false;
         query_server_info();
     }
-    if (system_info_retry_scheduled_ && now >= system_info_retry_at_ && klippy_identified() &&
+    if (system_info_retry_scheduled_ && now >= system_info_retry_at_ && klippy_identified_ &&
         !system_info_pending_ && klipper_service_.empty()) {
         query_system_info();
     }
@@ -157,6 +157,7 @@ void MoonrakerSession::on_connection(bool connected, const std::string& reason) 
     // The service belongs to the Moonraker we talk to, which may differ after a reconnect.
     system_info_pending_ = false;
     system_info_retry_scheduled_ = false;
+    klippy_identified_ = false;
     if (!klipper_service_.empty()) {
         klipper_service_.clear();
         mark_changed();
@@ -204,8 +205,9 @@ void MoonrakerSession::query_system_info() {
     // A host can run several Klipper instances (klipper, klipper-2, ...); only the one behind
     // this Moonraker may be restarted. Moonraker learns the unit name while it sets up the Klippy
     // connection and reports a default "klipper" before that (also while it says "startup"), so
-    // this is only asked once Klippy is ready or has reported an error. The name stays valid
-    // until the Moonraker connection changes: one Moonraker always serves the same unit.
+    // this is first asked once Klippy is ready or has reported an error. From then on Moonraker
+    // knows the real unit, so a retry may also run while Klippy is gone again. The name stays
+    // valid until the Moonraker connection changes: one Moonraker always serves the same unit.
     // Without a name, the service restart is not offered.
     system_info_pending_ = true;
     system_info_retry_scheduled_ = false;
@@ -227,10 +229,6 @@ void MoonrakerSession::query_system_info() {
             mark_changed();
         }
     });
-}
-
-bool MoonrakerSession::klippy_identified() const {
-    return state_ == SessionState::Ready || state_ == SessionState::KlippyError;
 }
 
 std::string MoonrakerSession::klipper_service_from(const Json& result) {
@@ -555,8 +553,11 @@ void MoonrakerSession::set_state(SessionState state) {
         }
         state_ = state;
         mark_changed();
-        if (klippy_identified() && klipper_service_.empty() && !system_info_pending_) {
-            query_system_info();
+        if (state == SessionState::Ready || state == SessionState::KlippyError) {
+            klippy_identified_ = true;
+            if (klipper_service_.empty() && !system_info_pending_) {
+                query_system_info();
+            }
         }
     }
 }
