@@ -13,7 +13,8 @@ set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
 # The store rejects packages whose Maintainer is still a template/M5Stack identity.
 set(APP_MAINTAINER "denchi-45 <56984245+denchi-45@users.noreply.github.com>" CACHE STRING "Debian package maintainer")
 set(APP_PACKAGE_DESCRIPTION "Klipper/Moonraker printer control panel for CardputerZero" CACHE STRING "Debian package summary")
-set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
+# Off: the app is started from APPLaunch. The unit would run as root, which the store does not allow.
+set(APP_INSTALL_SYSTEMD_SERVICE OFF CACHE BOOL "Install a systemd service file for embedded deployments")
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
 configure_file(
