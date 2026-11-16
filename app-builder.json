@@ -28,7 +28,7 @@
       "screenshot/screen-control.png",
       "screenshot/screen-move.png"
     ],
-    "icon": "assets/images/klipperdeck-control.png",
+    "icon": "assets/images/klipperdeck_256.png",
     "license": "MIT",
     "source_repo": "https://github.com/denchi-45/KlipperDeckZero",
     "author": { "github": "denchi-45", "display_name": "denchi-45" },
