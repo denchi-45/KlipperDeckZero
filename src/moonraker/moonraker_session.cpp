@@ -90,9 +90,9 @@ void MoonrakerSession::poll(Clock::time_point now) {
         server_info_scheduled_ = false;
         query_server_info();
     }
-    if (system_info_retry_scheduled_ && now >= system_info_retry_at_ && klippy_identified_ &&
-        !system_info_pending_ && klipper_service_.empty()) {
-        query_system_info();
+    if (service_lookup_retry_scheduled_ && now >= service_lookup_retry_at_ && klippy_identified_ &&
+        !service_lookup_pending_ && klipper_service_.empty()) {
+        query_klipper_service();
     }
     if (state_ == SessionState::Ready && !probe_pending_ &&
         now - client_.last_message_at() >= options_.liveness_timeout) {
@@ -155,8 +155,8 @@ void MoonrakerSession::on_connection(bool connected, const std::string& reason) 
     probe_pending_ = false;
     liveness_failed_ = false;
     // The service belongs to the Moonraker we talk to, which may differ after a reconnect.
-    system_info_pending_ = false;
-    system_info_retry_scheduled_ = false;
+    service_lookup_pending_ = false;
+    service_lookup_retry_scheduled_ = false;
     klippy_identified_ = false;
     if (!klipper_service_.empty()) {
         klipper_service_.clear();
@@ -201,27 +201,30 @@ void MoonrakerSession::identify() {
     });
 }
 
-void MoonrakerSession::query_system_info() {
+void MoonrakerSession::query_klipper_service() {
     // A host can run several Klipper instances (klipper, klipper-2, ...); only the one behind
-    // this Moonraker may be restarted. Moonraker learns the unit name while it sets up the Klippy
-    // connection and reports a default "klipper" before that (also while it says "startup"), so
-    // this is first asked once Klippy is ready or has reported an error. From then on Moonraker
-    // knows the real unit, so a retry may also run while Klippy is gone again. The name stays
-    // valid until the Moonraker connection changes: one Moonraker always serves the same unit.
+    // this Moonraker may be restarted. machine.system_info cannot tell: it reports a default
+    // "klipper" whenever Moonraker has no service info, also after its lookup failed on a Klippy
+    // reconnect. Moonraker stores the info it actually looked up in its database instead, and
+    // stores it empty when the lookup failed, so a unit name found there is the real one.
+    // This is first asked once Klippy is ready or has reported an error, and retried while the
+    // name is unknown, also while Klippy is gone again. The name stays valid until the Moonraker
+    // connection changes: one Moonraker always serves the same unit.
     // Without a name, the service restart is not offered.
-    system_info_pending_ = true;
-    system_info_retry_scheduled_ = false;
+    service_lookup_pending_ = true;
+    service_lookup_retry_scheduled_ = false;
     const auto epoch = connection_epoch_;
-    client_.call("machine.system_info", [this, epoch](const RpcResponse& response) {
+    Json params = {{"namespace", "moonraker"}, {"key", "klippy_connection.service_info"}};
+    client_.call("server.database.get_item", std::move(params), [this, epoch](const RpcResponse& response) {
         if (epoch != connection_epoch_) {
             return;
         }
-        system_info_pending_ = false;
+        service_lookup_pending_ = false;
         const auto name = response.ok ? klipper_service_from(response.result) : std::string();
         if (name.empty()) {
-            // Timeouts and errors can be transient: ask again later.
-            system_info_retry_scheduled_ = true;
-            system_info_retry_at_ = now_ + options_.klippy_retry_delay * 5;
+            // Not looked up (yet), or the lookup or request failed: ask again later.
+            service_lookup_retry_scheduled_ = true;
+            service_lookup_retry_at_ = now_ + options_.klippy_retry_delay * 5;
             return;
         }
         if (klipper_service_ != name) {
@@ -232,23 +235,22 @@ void MoonrakerSession::query_system_info() {
 }
 
 std::string MoonrakerSession::klipper_service_from(const Json& result) {
-    // Anything not shaped like a normal reply leaves the service unknown.
+    // result.value is the stored service info, e.g. {"unit_name": "klipper-2.service", ...}.
+    // Anything else leaves the service unknown.
     if (!result.is_object()) {
         return {};
     }
-    const auto info = result.find("system_info");
+    const auto info = result.find("value");
     if (info == result.end() || !info->is_object()) {
         return {};
     }
-    const auto ids = info->find("instance_ids");
-    if (ids == info->end() || !ids->is_object()) {
+    const auto unit = info->find("unit_name");
+    if (unit == info->end() || !unit->is_string()) {
         return {};
     }
-    const auto klipper = ids->find("klipper");
-    if (klipper == ids->end() || !klipper->is_string()) {
-        return {};
-    }
-    return klipper->get<std::string>();
+    // Moonraker restarts services by the name without the ".service" suffix.
+    const auto name = unit->get<std::string>();
+    return name.substr(0, name.find('.'));
 }
 
 void MoonrakerSession::query_server_info() {
@@ -555,8 +557,8 @@ void MoonrakerSession::set_state(SessionState state) {
         mark_changed();
         if (state == SessionState::Ready || state == SessionState::KlippyError) {
             klippy_identified_ = true;
-            if (klipper_service_.empty() && !system_info_pending_) {
-                query_system_info();
+            if (klipper_service_.empty() && !service_lookup_pending_) {
+                query_klipper_service();
             }
         }
     }

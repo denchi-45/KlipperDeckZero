@@ -94,7 +94,7 @@ public:
     // klippy_stuck_timeout, or a RESTART / FIRMWARE_RESTART got no answer (also while Ready, until
     // a status update shows Klippy is alive).
     bool klippy_unresponsive() const;
-    // The systemd service of the Klipper behind this Moonraker (machine.system_info), or empty
+    // The systemd service of the Klipper behind this Moonraker (from Moonraker's database), or empty
     // when unknown; restart_klipper_service() needs it.
     const std::string& klipper_service() const {
         return klipper_service_;
@@ -115,7 +115,7 @@ private:
     void force_reconnect(const std::string& reason);
     ResultHandler watch_klippy_restart(ResultHandler handler);
     void set_state(SessionState state);
-    void query_system_info();
+    void query_klipper_service();
     static std::string klipper_service_from(const Json& result);
     // A RESTART / FIRMWARE_RESTART went unanswered and nothing has shown Klippy alive since.
     bool restart_unanswered() const {
@@ -153,14 +153,14 @@ private:
     uint32_t restart_seq_{0};
     uint32_t unanswered_through_{0};
     uint32_t restarts_settled_through_{0};
-    // The verified service name (empty: unknown), and the machine.system_info request state.
+    // The verified service name (empty: unknown), and the state of its lookup.
     std::string klipper_service_;
-    bool system_info_pending_{false};
-    bool system_info_retry_scheduled_{false};
+    bool service_lookup_pending_{false};
+    bool service_lookup_retry_scheduled_{false};
     // Klippy has been identified (Ready, or it reported an error / shutdown) on this Moonraker
-    // connection, so Moonraker has learned the real unit name.
+    // connection, so Moonraker has looked up its service.
     bool klippy_identified_{false};
-    Clock::time_point system_info_retry_at_{};
+    Clock::time_point service_lookup_retry_at_{};
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};
     // Bumped on every (re)connection so responses from an old connection are ignored.
