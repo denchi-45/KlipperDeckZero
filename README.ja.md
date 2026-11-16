@@ -2,24 +2,71 @@
 
 [English](README.md) | 日本語 | [简体中文](README.zh-CN.md)
 
-M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面とキーボードから 3D プリンターを操作するための LVGL アプリです。
+M5Stack **CardputerZero** の画面とキーボードで、Klipper の 3D プリンターを操作するための LVGL アプリです。接続先の Moonraker は、CardputerZero 自体で動いていても、同じネットワーク上の別の機械で動いていてもかまいません。
 
-> 🚧 開発中です。第2段階(温度設定・押し出し/引き戻し・ファイル選択・印刷制御・軸の移動の操作画面)まで実装済みです。
+<img src="docs/images/screen-status-printing.png" width="640" alt="印刷中の状態表示画面。PRINTING バッジとファイル名、進捗、経過 / 残り時間、ノズルとベッドの温度">
 
-## できるようにしたいこと
+- M5Stack、Klipper、Moonraker の公式アプリではありません。
+- まだ開発中(0.1.0)です。不具合や要望は [Issues](https://github.com/denchi-45/KlipperDeckZero/issues) へどうぞ。日本語・英語・中国語のどれで書いてもかまいません。
 
-- プリンターの状態表示(状態、進捗、経過/残り時間、ノズル・ベッド温度、印刷中のファイルのサムネイルなど)
-- G-code ファイルの選択と印刷開始、一時停止/再開/中止
-- ホットエンド・ベッドの昇温指示
+> **安全について**
+> このアプリはヒーターの昇温やモーターの移動をネットワーク越しに指示します。プリンターから目を離した状態で操作しないでください。非常停止はアプリにもありますが、プリンター本体の電源をすぐ切れるようにしておいてください。
+
+## できること
+
+- プリンターの状態表示(状態、進捗、経過 / 残り時間、レイヤー、ノズル・ベッド温度、印刷中のファイルのサムネイル)
+- ノズル・ベッドの目標温度の設定とプリセット
 - フィラメントの押し出し(Extrude)と引き戻し(Retract)
+- G-code ファイルの選択と印刷開始
+- 一時停止 / 再開、中止、非常停止
 - 軸の移動(ジョグ)、ホーミング、モーターのオフ
+- Klipper / MCU の再起動
 
-## 構成
+## 必要なもの
 
-- ベース: [CardputerZero/Template](https://github.com/CardputerZero/Template)(C++17 / LVGL 9.5 / CMake)
-- プリンター制御: [Moonraker](https://moonraker.readthedocs.io/) の JSON-RPC API
-  - 実機: Unix ソケット(`~/printer_data/comms/moonraker.sock`)
-  - デスクトップシミュレーター: WebSocket(`ws://<printer-ip>:7125/websocket`)
+- M5Stack CardputerZero(標準の OS。arm64)
+- [Klipper](https://www.klipper3d.org/) と [Moonraker](https://moonraker.readthedocs.io/) が動いているプリンター。Mainsail や Fluidd が使えている環境なら、Moonraker は入っています。
+- Klipper と Moonraker を別の機械で動かすときは、その機械と CardputerZero が同じネットワークにつながっていること
+
+## インストール
+
+### ストアから
+
+CardputerZero のアプリストアで「KlipperDeckZero」を探してインストールします(公開後)。
+
+### .deb パッケージから
+
+[Releases](https://github.com/denchi-45/KlipperDeckZero/releases) から `klipper-deck-zero_<バージョン>-rev1_arm64.deb` をダウンロードして CardputerZero にコピーし、次のコマンドでインストールします。
+
+```sh
+sudo apt install ./klipper-deck-zero_0.1.0-rev1_arm64.deb
+```
+
+インストールすると、ランチャーに KlipperDeckZero が出ます。自分でビルドする場合は「[開発](#開発)」を参照してください。
+
+## 接続の設定
+
+起動したら `S` で接続設定を開き、「Connect to」で接続先を選びます。項目を選んで `Enter` で編集し、最後に「Save & connect」で保存して接続します。
+
+### CardputerZero 自体で動く Klipper につなぐ
+
+「Connect to」を「This device」にします(初期設定はこちらです)。Moonraker の Unix ソケット(既定は `~/printer_data/comms/moonraker.sock`)につなぐので、Moonraker 側の設定はいりません。ソケットの場所が違うときは「Socket」を書き換えます。
+
+### ネットワーク上のプリンターにつなぐ
+
+「Connect to」を「Network」にして、「Host」にプリンターの IP アドレスかホスト名(例: `192.168.1.50`、`mainsailos.local`)、「Port」に Moonraker のポート(通常は `7125`)を入れます。
+
+また、Moonraker が接続を受け付けるように、次のどちらかを設定してください。
+
+- プリンター側の `moonraker.conf` で、`[authorization]` の `trusted_clients` に CardputerZero の IP アドレスかネットワークの範囲を入れる(家庭内のネットワークならたいてい入っています)。
+
+  ```ini
+  [authorization]
+  trusted_clients:
+      192.168.1.0/24
+  ```
+
+- または、KlipperDeckZero の接続設定の「API key」に Moonraker の API キーを入れる。
 
 ## 画面と操作
 
@@ -37,7 +84,7 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 - **トースト**: 操作の結果(成功 / Klipper のエラー)や「Printer is not ready」などを、画面下部に一時的に出す。
 - **テーマ**: ライト / ダークを `D` で切り替える。
 
-> この README のスクリーンショットは、デスクトップシミュレーターを疑似 Moonraker(fake_moonraker)に接続して撮影したものです。本体フレームとバーチャルキーボードを含めて表示しています(キーボード上の記号はシミュレーターでのキー割り当ての目安です)。撮り直し方は「[README のスクリーンショット](#readme-のスクリーンショット)」を参照してください。
+> この README のスクリーンショットは、デスクトップシミュレーターを疑似 Moonraker(fake_moonraker)に接続して撮影したものです。本体フレームとバーチャルキーボードを含めて表示しています(キーボード上の記号はシミュレーターでのキー割り当ての目安です)。撮り直し方は「[スクリーンショット](#スクリーンショット)」を参照してください。
 
 ### 画面一覧
 
@@ -151,16 +198,55 @@ M5Stack **CardputerZero** に Klipper / Moonraker を載せ、本体の画面と
 
 <img src="docs/images/screen-settings.png" width="640" alt="接続設定画面。Connect to Network、Host・Port・API key、Save & connect、最下行に状態バッジ。ナビバーはレイヤー 2(2/2)">
 
-`↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「このデバイス(Unix ソケット)」と「ネットワーク(WebSocket、Host / Port / API key)」から選べ、「Save & connect」で保存して接続し直します。最下行には常に状態バッジを出し、その横に通常は接続状態を、保存結果や入力エラーがある間はそのメッセージを出します。
+`↑`/`↓` で項目を選び、`Enter` で編集・確定、`←`/`→` で選択肢を切り替え、`ESC` で編集取消 / 戻るです。接続先は「This device」(この端末、Unix ソケット)と「Network」(ネットワーク、WebSocket。Host と Port。API key は `trusted_clients` に入っていない場合だけ)から選べ、「Save & connect」で保存して接続し直します。最下行には常に状態バッジを出し、その横に通常は接続状態を、保存結果や入力エラーがある間はそのメッセージを出します。
+
+
+## 設定ファイル
+
+接続設定の画面で保存した内容は、ユーザー設定のファイルに書かれます。直接編集してもかまいません。
+
+- 実機: `/etc/klipper-deck-zero.conf`(初期値)と `~/.config/klipper-deck-zero/klipper-deck-zero.conf`(ユーザー設定。`XDG_CONFIG_HOME` を設定しているときはその下)
+- デスクトップシミュレーター: `config/klipper-deck-zero.conf`
+
+```ini
+[moonraker]
+# unix: この端末の Klipper / websocket: 別の機械の Klipper
+# (既定: 実機=unix, シミュレーター=websocket で 127.0.0.1)
+transport=websocket
+socket_path=~/printer_data/comms/moonraker.sock
+# websocket のときの接続先(ws://<host>:<port>/websocket)
+host=192.168.1.50
+port=7125
+# trusted_clients に入っていない場合のみ
+#api_key=
+```
+
+## うまくつながらないとき
+
+- **OFFLINE のまま**: Host と Port を確認してください。CardputerZero と同じネットワークにある PC のブラウザで `http://<host>:7125/server/info` を開き、応答が返るかも確認してください。「This device」のときは、Moonraker が動いていて、ソケットのファイルがあるかを確認してください。
+- **接続を拒否される**: Moonraker の `trusted_clients` に CardputerZero が入っているか、API キーが正しいかを確認してください。
+- **STARTING / ERROR / SHUTDOWN のまま**: Klipper 側の問題です。Mainsail などでエラーの内容を確認してください。状態表示の画面で `R` を 2 回押すと Klipper を、`F` を 2 回押すと MCU を再起動できます。
+
+## 更新とアンインストール
+
+更新は、新しい .deb を同じ手順でインストールします。設定ファイルはそのまま残ります。
+
+```sh
+sudo apt remove klipper-deck-zero   # アプリを削除(/etc の設定ファイルは残る)
+sudo apt purge klipper-deck-zero    # /etc の設定ファイルも削除
+```
+
+ユーザー設定のファイル(`~/.config/klipper-deck-zero/klipper-deck-zero.conf`)は、どちらの場合も残ります。
 
 ## ロードマップ
 
 1. ✅ Moonraker 通信層 + 状態表示画面
 2. ✅ 温度設定、押し出し/引き戻し、ファイル選択、印刷制御、軸の移動の画面
+3. アプリ画面の表示言語の切り替え(英語・日本語・中国語)
 
-## ビルド
+## 開発
 
-[CardputerZero/Template](https://github.com/CardputerZero/Template) と同じ CMake Presets を使います。
+[CardputerZero/Template](https://github.com/CardputerZero/Template)(C++17 / LVGL 9.5 / CMake)をもとにしています。Moonraker とは JSON-RPC で通信し、実機では Unix ソケットか WebSocket、デスクトップシミュレーターでは WebSocket を使います。
 
 ### Windows デスクトップシミュレーター(MinGW)
 
@@ -177,29 +263,13 @@ MSVC の場合は `win32-msvc` プリセット(`build/msvc`)を使います。
 ### 実機(CardputerZero)向けクロスビルド / パッケージ
 
 ```sh
-cmake --workflow --preset cp0-cross-package   # dist/KlipperDeckZero_*_arm64.deb
-REMOTE_USER=pi REMOTE_HOST=<ip> ./deploy.sh
+cmake --workflow --preset cp0-cross-package   # dist/klipper-deck-zero_*_arm64.deb
+REMOTE_USER=pi REMOTE_HOST=192.168.1.20 ./deploy.sh
 ```
 
-## 設定ファイル
+`deploy.sh` はパッケージを作って CardputerZero のホームディレクトリにコピーするだけです。インストールは「[.deb パッケージから](#deb-パッケージから)」の手順で行います。
 
-- デスクトップ: `config/klipper-deck-zero.conf`
-- 実機: `/etc/klipper-deck-zero.conf`(ユーザー設定は `~/.config/klipper-deck-zero/klipper-deck-zero.conf`)
-
-```ini
-[moonraker]
-# unix: この端末の Klipper / websocket: 別の機械の Klipper
-# (既定: 実機=unix, シミュレーター=websocket で 127.0.0.1)
-transport=websocket
-socket_path=~/printer_data/comms/moonraker.sock
-# websocket のときの接続先(ws://<host>:<port>/websocket)
-host=192.168.1.50
-port=7125
-# trusted_clients に入っていない場合のみ
-#api_key=
-```
-
-## プリンターなしで動かす(疑似 Moonraker)
+### プリンターなしで動かす(疑似 Moonraker)
 
 デスクトップビルドには `fake_moonraker` が含まれます。ヒーター昇温・押し出し温度チェック・印刷進捗・非常停止・FW再起動を模擬します。
 
@@ -208,11 +278,11 @@ port=7125
 ./build/mingw64/Debug/klipper-deck-zero.exe
 ```
 
-実機につなぐ場合は `host=<プリンターIP>` に変更します。
+実機につなぐ場合は、`config/klipper-deck-zero.conf` の `host` をプリンターの IP に変えます。
 
-### README のスクリーンショット
+### スクリーンショット
 
-`docs/images/screen-*.png` は、デスクトップシミュレーターを疑似 Moonraker につないで撮っています。画面を変えたときは、Debug ビルドの後に次のスクリプトで全部撮り直せます(ポート 7125 を空けておいてください)。
+`docs/images/screen-*.png`(README 用)と `screenshot/*.png`(ストア用、320x170)は、デスクトップシミュレーターを疑似 Moonraker につないで撮っています。画面を変えたときは、Debug ビルドの後に次のスクリプトで全部撮り直せます(ポート 7125 を空けておいてください)。
 
 ```powershell
 ./tools/readme_screenshots/capture.ps1
@@ -220,7 +290,7 @@ port=7125
 
 シミュレーターのウィンドウにキー操作を送り、アプリのスクリーンショット機能で保存した画面(320x170)を本体フレームの画像に重ねて保存します。ウィンドウが画面に見えている必要はありません。`D` で切り替えたテーマは終了時に元に戻します。
 
-## テスト
+### テスト
 
 LVGL に依存しない部分のユニットテストです。Moonraker クライアント(JSON-RPC / 状態マージ / 接続シーケンス)、設定の読み込み・保存、各画面の操作ロジック(接続設定のフォーム・ファイル一覧・温度・押し出し・印刷制御・移動)、G-code の状態の保存と復元、サムネイルの選び方、再起動の確認、ナビバーのレイヤーなどを確かめます。LVGL なしでも単独でビルドできます。
 
@@ -230,7 +300,11 @@ ctest --test-dir build/mingw64 -C Debug            # プリセットビルドに
 cmake -S tests -B build/tests -G Ninja && cmake --build build/tests && ./build/tests/kdz_tests
 ```
 
-## ドキュメント
+### ドキュメント(日本語のみ)
 
 - [設計ドキュメント](docs/design/README.md)(接続の仕組み、操作画面の設計)
 - [Moonraker API × CardputerZero 技術調査メモ](docs/moonraker_tech_notes.md)
+
+## ライセンス
+
+[MIT License](LICENSE) です。使っているライブラリ・フォント・アイコンのライセンスは [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) にまとめています。

@@ -1,5 +1,6 @@
 #
 # SPDX-FileCopyrightText: 2026 M5Stack Technology CO LTD
+# SPDX-FileCopyrightText: 2026 denchi-45
 #
 # SPDX-License-Identifier: MIT
 # Packaging and install layout for CardputerZero Debian builds.
@@ -9,11 +10,11 @@ include(GNUInstallDirs)
 set(APP_DISPLAY_NAME "KlipperDeckZero" CACHE STRING "Human-readable application name used by launchers and package filename")
 set(APP_DEBIAN_REVISION "rev1" CACHE STRING "Debian package revision/vendor suffix")
 set(APP_DEBIAN_ARCHITECTURE "arm64" CACHE STRING "Debian package architecture")
-# Deliberately a placeholder: the store rejects packages whose Maintainer is
-# still a template/M5Stack identity, so set your own name and email here.
-set(APP_MAINTAINER "TODO Your Name <todo@example.invalid>" CACHE STRING "Debian package maintainer")
+# The store rejects packages whose Maintainer is still a template/M5Stack identity.
+set(APP_MAINTAINER "denchi-45 <56984245+denchi-45@users.noreply.github.com>" CACHE STRING "Debian package maintainer")
 set(APP_PACKAGE_DESCRIPTION "Klipper/Moonraker printer control panel for CardputerZero" CACHE STRING "Debian package summary")
-set(APP_INSTALL_SYSTEMD_SERVICE ON CACHE BOOL "Install a systemd service file for embedded deployments")
+# Off: the app is started from APPLaunch. The unit would run as root, which the store does not allow.
+set(APP_INSTALL_SYSTEMD_SERVICE OFF CACHE BOOL "Install a systemd service file for embedded deployments")
 
 set(APP_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/package")
 configure_file(
@@ -66,12 +67,18 @@ if(APP_INSTALL_SYSTEMD_SERVICE)
     )
 endif()
 
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+        "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+        "${CMAKE_CURRENT_SOURCE_DIR}/THIRD_PARTY_NOTICES.md"
     DESTINATION "${CMAKE_INSTALL_DOCDIR}"
 )
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses/"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/licenses"
+)
+# Same relative path as in the repository, so the links in THIRD_PARTY_NOTICES.md work.
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/LICENSE.txt"
-    DESTINATION "${CMAKE_INSTALL_DOCDIR}"
-    RENAME "third-party-assets-license.txt"
+    DESTINATION "${CMAKE_INSTALL_DOCDIR}/assets/fonts"
 )
 
 set(CPACK_GENERATOR "DEB")
@@ -82,8 +89,9 @@ set(CPACK_PACKAGE_VENDOR "${APP_MAINTAINER}")
 set(CPACK_PACKAGE_CONTACT "${APP_MAINTAINER}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${APP_PACKAGE_DESCRIPTION}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_FILE_NAME "${APP_DISPLAY_NAME}_${PROJECT_VERSION}_${APP_DEBIAN_REVISION}_${APP_DEBIAN_ARCHITECTURE}")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/LICENSE.txt")
+# The store expects packagename_version-revision_arch.deb.
+set(CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}_${PROJECT_VERSION}-${APP_DEBIAN_REVISION}_${APP_DEBIAN_ARCHITECTURE}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 
 # The Debian package name is the project name, which app-builder.json package_name must match.
 if(NOT PROJECT_NAME MATCHES "^[a-z0-9][a-z0-9+.-]+$")
