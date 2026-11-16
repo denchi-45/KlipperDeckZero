@@ -86,13 +86,13 @@ void MoonrakerSession::poll(Clock::time_point now) {
         set_state(SessionState::Connecting);
         client_.open();
     }
+    if (service_lookup_retry_scheduled_ && now >= service_lookup_retry_at_ && !service_lookup_pending_ &&
+        klipper_service_.empty()) {
+        query_klipper_service();
+    }
     if (server_info_scheduled_ && now >= server_info_at_) {
         server_info_scheduled_ = false;
         query_server_info();
-    }
-    if (service_lookup_retry_scheduled_ && now >= service_lookup_retry_at_ && klippy_identified_ &&
-        !service_lookup_pending_ && klipper_service_.empty()) {
-        query_klipper_service();
     }
     if (state_ == SessionState::Ready && !probe_pending_ &&
         now - client_.last_message_at() >= options_.liveness_timeout) {
@@ -157,7 +157,6 @@ void MoonrakerSession::on_connection(bool connected, const std::string& reason) 
     // The service belongs to the Moonraker we talk to, which may differ after a reconnect.
     service_lookup_pending_ = false;
     service_lookup_retry_scheduled_ = false;
-    klippy_identified_ = false;
     if (!klipper_service_.empty()) {
         klipper_service_.clear();
         mark_changed();
@@ -197,6 +196,7 @@ void MoonrakerSession::identify() {
             // Older Moonraker versions or unix sockets without identify support still work.
             set_error("identify failed: " + response.error.message);
         }
+        query_klipper_service();
         query_server_info();
     });
 }
@@ -205,10 +205,11 @@ void MoonrakerSession::query_klipper_service() {
     // A host can run several Klipper instances (klipper, klipper-2, ...); only the one behind
     // this Moonraker may be restarted. machine.system_info cannot tell: it reports a default
     // "klipper" whenever Moonraker has no service info, also after its lookup failed on a Klippy
-    // reconnect. Moonraker stores the info it actually looked up in its database instead, and
-    // stores it empty when the lookup failed, so a unit name found there is the real one.
-    // This is first asked once Klippy is ready or has reported an error, and retried while the
-    // name is unknown, also while Klippy is gone again. The name stays valid until the Moonraker
+    // reconnect. Moonraker stores the info it actually looked up in its database instead (it
+    // also keeps it across its own restarts), and stores it empty when the lookup failed, so a
+    // unit name found there is the real one, whatever state Klippy is in. This is asked as soon
+    // as Moonraker is connected, so a Klippy that never leaves startup can still be restarted,
+    // and retried while the name is unknown. The name stays valid until the Moonraker
     // connection changes: one Moonraker always serves the same unit.
     // Without a name, the service restart is not offered.
     service_lookup_pending_ = true;
@@ -248,9 +249,14 @@ std::string MoonrakerSession::klipper_service_from(const Json& result) {
     if (unit == info->end() || !unit->is_string()) {
         return {};
     }
-    // Moonraker restarts services by the name without the ".service" suffix.
-    const auto name = unit->get<std::string>();
-    return name.substr(0, name.find('.'));
+    // Moonraker restarts services by the name without the ".service" suffix. Other dots belong
+    // to the name (klipper.2.service is klipper.2).
+    auto name = unit->get<std::string>();
+    static const std::string suffix = ".service";
+    if (name.size() >= suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+        name.erase(name.size() - suffix.size());
+    }
+    return name;
 }
 
 void MoonrakerSession::query_server_info() {
@@ -555,12 +561,6 @@ void MoonrakerSession::set_state(SessionState state) {
         }
         state_ = state;
         mark_changed();
-        if (state == SessionState::Ready || state == SessionState::KlippyError) {
-            klippy_identified_ = true;
-            if (klipper_service_.empty() && !service_lookup_pending_) {
-                query_klipper_service();
-            }
-        }
     }
 }
 

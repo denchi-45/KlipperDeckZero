@@ -157,9 +157,6 @@ private:
     std::string klipper_service_;
     bool service_lookup_pending_{false};
     bool service_lookup_retry_scheduled_{false};
-    // Klippy has been identified (Ready, or it reported an error / shutdown) on this Moonraker
-    // connection, so Moonraker has looked up its service.
-    bool klippy_identified_{false};
     Clock::time_point service_lookup_retry_at_{};
     // klippy_unresponsive() as of the last poll(), to report its changes.
     bool reported_unresponsive_{false};

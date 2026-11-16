@@ -65,8 +65,8 @@ struct Fixture {
         reply(shared, last_sent(), json{{"connection_id", 1}});
         poll();
         CHECK_EQ(last_method(), std::string("server.info"));
-        // The service is only asked once Klippy is identified.
-        CHECK(last_sent_of(kServiceLookup).is_null());
+        // The service is asked right away, whatever state Klippy is in; it is left pending.
+        CHECK(!last_sent_of(kServiceLookup).is_null());
     }
 
     // Moonraker's stored service info as server.database.get_item returns it; an empty
@@ -89,7 +89,7 @@ struct Fixture {
         poll();
     }
 
-    // Runs the ready flow from a pending server.info; service lookup is then pending.
+    // Runs the ready flow from a pending server.info.
     void finish_ready(const json& available_sensors = json::array({"extruder"})) {
         reply(shared, last_sent(), json{{"klippy_state", "ready"}});
         poll();
@@ -104,8 +104,6 @@ struct Fixture {
                                           {"print_stats", {{"state", "standby"}}}}}});
         poll();
         CHECK(session.session_state() == SessionState::Ready);
-        // Klippy is identified now, so its service is asked.
-        CHECK_EQ(last_method(), std::string(kServiceLookup));
     }
 
     // available_sensors is the printer's heaters.available_sensors list; klipper_service is what
@@ -742,36 +740,44 @@ TEST_CASE("session: service lookup of an earlier connection is dropped on reconn
     CHECK(f.session.klipper_service().empty());
 }
 
-TEST_CASE("session: klipper service is asked only after klippy is identified") {
+TEST_CASE("session: klippy stuck in startup from the start can restart the stored service") {
     Fixture f;
     f.connect_and_identify();
-    // While Moonraker says "disconnected" or "startup" it may not have looked up the service yet.
-    reply(f.shared, f.last_sent(), json{{"klippy_state", "disconnected"}});
-    f.poll();
-    f.poll(2000ms);
-    reply(f.shared, f.last_sent(), json{{"klippy_state", "startup"}});
-    f.poll();
-    CHECK(f.last_sent_of(kServiceLookup).is_null());
-    CHECK(f.session.klipper_service().empty());
-
-    // Ready: Klippy is identified.
-    f.poll(2000ms);
-    f.finish_ready();
+    // Moonraker has the unit from an earlier Klippy connection, while Klippy never comes up now.
     f.answer_service_lookup("klipper-2");
     CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
+    for (int i = 0; i < 16; ++i) {
+        reply(f.shared, f.last_sent_of("server.info"), json{{"klippy_state", "startup"}});
+        f.poll();
+        f.poll(2000ms);
+    }
+    CHECK(f.session.session_state() == SessionState::WaitingKlippy);
+    CHECK(f.session.klippy_unresponsive());
+
+    f.session.restart_klipper_service();
+    CHECK_EQ(f.last_method(), std::string("machine.services.restart"));
+    CHECK_EQ(f.last_sent()["params"]["service"].get<std::string>(), std::string("klipper-2"));
 }
 
-TEST_CASE("session: klipper service is asked when klippy reports an error") {
+TEST_CASE("session: klippy stuck from the start without a stored service is not restarted") {
     Fixture f;
     f.connect_and_identify();
-    reply(f.shared, f.last_sent(), json{{"klippy_state", "shutdown"}});
+    // Moonraker never looked up the service: it has nothing stored.
+    reply_error(f.shared, f.last_sent_of(kServiceLookup), 404, "Key 'klippy_connection.service_info' not found");
     f.poll();
-    CHECK(f.session.session_state() == SessionState::KlippyError);
-    CHECK(!f.last_sent_of(kServiceLookup).is_null());
-    // printer.info still goes out last, for the error message.
-    CHECK_EQ(f.last_method(), std::string("printer.info"));
-    f.answer_service_lookup("klipper-2");
-    CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
+    for (int i = 0; i < 16; ++i) {
+        reply(f.shared, f.last_sent_of("server.info"), json{{"klippy_state", "startup"}});
+        f.poll();
+        f.poll(2000ms);
+    }
+    CHECK(f.session.klippy_unresponsive());
+    CHECK(f.session.klipper_service().empty());
+    bool failed = false;
+    f.session.restart_klipper_service([&](const moonraker::RpcResponse& response) {
+        failed = !response.ok;
+    });
+    CHECK(failed);
+    CHECK(f.last_sent_of("machine.services.restart").is_null());
 }
 
 TEST_CASE("session: verified service is kept while klippy stays disconnected") {
@@ -798,16 +804,16 @@ TEST_CASE("session: failed service lookup is asked again") {
     Fixture f;
     f.connect_and_identify();
     f.finish_ready();
-    reply_error(f.shared, f.last_sent(), 503, "Service unavailable");
+    const auto failed = f.last_sent_of(kServiceLookup);
+    reply_error(f.shared, failed, 503, "Service unavailable");
     f.poll();
     CHECK(f.session.klipper_service().empty());
 
-    const auto sent_before = f.shared.sent.size();
     f.poll(9999ms);
-    CHECK(f.last_sent_of(kServiceLookup) == f.shared.sent[sent_before - 1]);
+    CHECK(f.last_sent_of(kServiceLookup) == failed);
     f.poll(1ms);
     const auto retry = f.last_sent_of(kServiceLookup);
-    CHECK(retry != f.shared.sent[sent_before - 1]);
+    CHECK(retry != failed);
     f.answer_service_lookup("klipper-2");
     CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
 }
@@ -816,7 +822,7 @@ TEST_CASE("session: unanswered service lookup is asked again") {
     Fixture f;
     f.connect_and_identify();
     f.finish_ready();
-    const auto first = f.last_sent();
+    const auto first = f.last_sent_of(kServiceLookup);
 
     // The request times out (Moonraker answers the liveness probe meanwhile).
     f.poll(10000ms);
@@ -833,7 +839,7 @@ TEST_CASE("session: unanswered service lookup is asked again") {
 }
 
 TEST_CASE("session: failed service lookup is retried after klippy disconnects") {
-    // Ready, the lookup fails (error or no answer), and Klippy goes away before the retry.
+    // The lookup fails (error or no answer), and Klippy goes away before the retry.
     for (const bool time_out : {false, true}) {
         for (const char* waiting_state : {"startup", "disconnected"}) {
             Fixture f;
@@ -847,7 +853,7 @@ TEST_CASE("session: failed service lookup is retried after klippy disconnects") 
                 }
             }
             else {
-                reply_error(f.shared, f.last_sent(), 503, "Service unavailable");
+                reply_error(f.shared, f.last_sent_of(kServiceLookup), 503, "Service unavailable");
                 f.poll();
             }
             CHECK(f.session.klipper_service().empty());
@@ -878,7 +884,7 @@ TEST_CASE("session: service info Moonraker failed to look up leaves the service 
     Fixture f;
     f.connect_and_identify();
     f.finish_ready();
-    reply_error(f.shared, f.last_sent(), 503, "Service unavailable");
+    reply_error(f.shared, f.last_sent_of(kServiceLookup), 503, "Service unavailable");
     f.poll();
 
     // Klippy reconnects and Moonraker's own lookup fails: it stores empty service info (and
@@ -920,20 +926,28 @@ TEST_CASE("session: service info Moonraker failed to look up leaves the service 
     CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
 }
 
-TEST_CASE("session: stored unit name without a suffix is used as is") {
-    Fixture f;
-    f.connect_and_identify();
-    f.finish_ready();
-    reply(f.shared, f.last_sent(), json{{"value", {{"unit_name", "klipper-2"}}}});
-    f.poll();
-    CHECK_EQ(f.session.klipper_service(), std::string("klipper-2"));
+TEST_CASE("session: only the .service suffix is dropped from the stored unit name") {
+    const std::pair<const char*, const char*> units[] = {
+        {"klipper-2.service", "klipper-2"},
+        {"klipper-2", "klipper-2"},
+        {"klipper.2.service", "klipper.2"},
+        {"klipper.2", "klipper.2"},
+        {"klipper@printer.1.service", "klipper@printer.1"},
+    };
+    for (const auto& [unit, expected] : units) {
+        Fixture f;
+        f.connect_and_identify();
+        reply(f.shared, f.last_sent_of(kServiceLookup), json{{"value", {{"unit_name", unit}}}});
+        f.poll();
+        CHECK_EQ(f.session.klipper_service(), std::string(expected));
+    }
 }
 
 TEST_CASE("session: service lookup reply from an earlier connection is dropped") {
     Fixture f;
     f.connect_and_identify();
     f.finish_ready();
-    const auto stale = f.last_sent();
+    const auto stale = f.last_sent_of(kServiceLookup);
 
     inject(f.shared, TransportEventType::Closed, "gone");
     f.poll();
@@ -958,7 +972,7 @@ TEST_CASE("session: malformed service lookup leaves the service unknown") {
         Fixture f;
         f.connect_and_identify();
         f.finish_ready();
-        reply(f.shared, f.last_sent(), result);
+        reply(f.shared, f.last_sent_of(kServiceLookup), result);
         f.poll();
         CHECK(f.session.klipper_service().empty());
         CHECK(f.session.session_state() == SessionState::Ready);
