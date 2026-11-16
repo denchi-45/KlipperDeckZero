@@ -151,6 +151,24 @@ private:
         }
 
         const bool klipper = kind == RestartKind::Klipper;
+        // A stuck Klippy never answers RESTART / FIRMWARE_RESTART; R restarts its service instead.
+        const bool unresponsive = session_->klippy_unresponsive();
+        if (unresponsive && session_->klipper_service().empty()) {
+            // Not knowing which service runs this Klipper, restarting a guess could stop another printer.
+            restart_confirm_.cancel();
+            toast_->show("Klipper not responding: restart it on its host", view::widgets::ToastTone::Warning, 4000);
+            return;
+        }
+        const bool service = unresponsive;
+        if (service && !klipper) {
+            restart_confirm_.cancel();
+            toast_->show_highlighted("Klipper not responding: press ",
+                                     "R",
+                                     " twice",
+                                     view::widgets::ToastTone::Warning,
+                                     4000);
+            return;
+        }
         const bool printing =
             restart_would_abort_print(session_->session_state(), session_->printer().print_state);
         switch (restart_confirm_.press(kind, printing, lv_tick_get())) {
@@ -160,8 +178,9 @@ private:
             case RestartConfirm::Result::Armed:
                 toast_->show_highlighted("Press ",
                                          klipper ? "R" : "F",
-                                         klipper ? " again to restart Klipper"
-                                                 : " again to restart the MCU",
+                                         service   ? " again to restart the Klipper service"
+                                         : klipper ? " again to restart Klipper"
+                                                   : " again to restart the MCU",
                                          view::widgets::ToastTone::Warning,
                                          RestartConfirm::kWindowMs);
                 return;
@@ -169,17 +188,32 @@ private:
                 break;
         }
 
+        auto on_result = [this](const moonraker::RpcResponse& response) {
+            if (response.ok) {
+                return;
+            }
+            LOG_WARN("restart failed: {}", response.error.message);
+            if (moonraker::is_no_response(response) && session_ && session_->klippy_unresponsive() &&
+                !session_->klipper_service().empty()) {
+                toast_->show_highlighted("Klipper not responding: press ",
+                                         "R",
+                                         " twice",
+                                         view::widgets::ToastTone::Error,
+                                         5000);
+                return;
+            }
+            toast_->show("Restart failed: " + response.error.message, view::widgets::ToastTone::Error, 4000);
+        };
+        if (service) {
+            LOG_INFO("klipper service restart requested");
+            toast_->show("Restarting Klipper service...", view::widgets::ToastTone::Success);
+            session_->restart_klipper_service(std::move(on_result));
+            return;
+        }
+
         LOG_INFO("{} requested", klipper ? "RESTART" : "FIRMWARE_RESTART");
         toast_->show(klipper ? "Restarting Klipper..." : "Restarting MCU firmware...",
                      view::widgets::ToastTone::Success);
-        auto on_result = [this](const moonraker::RpcResponse& response) {
-            if (!response.ok) {
-                LOG_WARN("restart failed: {}", response.error.message);
-                toast_->show("Restart failed: " + response.error.message,
-                             view::widgets::ToastTone::Error,
-                             4000);
-            }
-        };
         if (klipper) {
             session_->restart(std::move(on_result));
         }

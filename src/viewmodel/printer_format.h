@@ -71,6 +71,8 @@ StatusBadge status_badge(moonraker::SessionState session, const model::PrinterSt
 ConnectionOverlay connection_overlay(moonraker::SessionState session,
                                      const model::PrinterState& printer,
                                      const std::string& endpoint,
-                                     const std::string& last_error);
+                                     const std::string& last_error,
+                                     bool klippy_unresponsive = false,
+                                     bool service_restart_available = true);
 
 } // namespace viewmodel::format

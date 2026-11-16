@@ -6,12 +6,14 @@
 
 #include "status_merge.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace moonraker {
 
 namespace {
 constexpr std::size_t kMaxGcodeResponses = 32;
+} // namespace
 
 // Errors produced locally when the server did not answer at all (as opposed to a server error).
 // Server error replies may reuse these codes; only a locally generated failure means no answer.
@@ -19,7 +21,6 @@ bool is_no_response(const RpcResponse& response) {
     return response.local_error &&
            (response.error.code == kErrorTimeout || response.error.code == kErrorSendFailed);
 }
-} // namespace
 
 const char* to_string(SessionState state) {
     switch (state) {
@@ -85,6 +86,10 @@ void MoonrakerSession::poll(Clock::time_point now) {
         set_state(SessionState::Connecting);
         client_.open();
     }
+    if (service_lookup_retry_scheduled_ && now >= service_lookup_retry_at_ && !service_lookup_pending_ &&
+        klipper_service_.empty()) {
+        query_klipper_service();
+    }
     if (server_info_scheduled_ && now >= server_info_at_) {
         server_info_scheduled_ = false;
         query_server_info();
@@ -92,6 +97,11 @@ void MoonrakerSession::poll(Clock::time_point now) {
     if (state_ == SessionState::Ready && !probe_pending_ &&
         now - client_.last_message_at() >= options_.liveness_timeout) {
         probe_connection();
+    }
+    // The stuck timeout passes without any event, so its change is noticed here.
+    if (klippy_unresponsive() != reported_unresponsive_) {
+        reported_unresponsive_ = !reported_unresponsive_;
+        mark_changed();
     }
 
     if (dirty_) {
@@ -144,6 +154,13 @@ void MoonrakerSession::on_connection(bool connected, const std::string& reason) 
     server_info_scheduled_ = false;
     probe_pending_ = false;
     liveness_failed_ = false;
+    // The service belongs to the Moonraker we talk to, which may differ after a reconnect.
+    service_lookup_pending_ = false;
+    service_lookup_retry_scheduled_ = false;
+    if (!klipper_service_.empty()) {
+        klipper_service_.clear();
+        mark_changed();
+    }
 
     if (connected) {
         last_error_.clear();
@@ -179,8 +196,67 @@ void MoonrakerSession::identify() {
             // Older Moonraker versions or unix sockets without identify support still work.
             set_error("identify failed: " + response.error.message);
         }
+        query_klipper_service();
         query_server_info();
     });
+}
+
+void MoonrakerSession::query_klipper_service() {
+    // A host can run several Klipper instances (klipper, klipper-2, ...); only the one behind
+    // this Moonraker may be restarted. machine.system_info cannot tell: it reports a default
+    // "klipper" whenever Moonraker has no service info, also after its lookup failed on a Klippy
+    // reconnect. Moonraker stores the info it actually looked up in its database instead (it
+    // also keeps it across its own restarts), and stores it empty when the lookup failed, so a
+    // unit name found there is the real one, whatever state Klippy is in. This is asked as soon
+    // as Moonraker is connected, so a Klippy that never leaves startup can still be restarted,
+    // and retried while the name is unknown. The name stays valid until the Moonraker
+    // connection changes: one Moonraker always serves the same unit.
+    // Without a name, the service restart is not offered.
+    service_lookup_pending_ = true;
+    service_lookup_retry_scheduled_ = false;
+    const auto epoch = connection_epoch_;
+    Json params = {{"namespace", "moonraker"}, {"key", "klippy_connection.service_info"}};
+    client_.call("server.database.get_item", std::move(params), [this, epoch](const RpcResponse& response) {
+        if (epoch != connection_epoch_) {
+            return;
+        }
+        service_lookup_pending_ = false;
+        const auto name = response.ok ? klipper_service_from(response.result) : std::string();
+        if (name.empty()) {
+            // Not looked up (yet), or the lookup or request failed: ask again later.
+            service_lookup_retry_scheduled_ = true;
+            service_lookup_retry_at_ = now_ + options_.klippy_retry_delay * 5;
+            return;
+        }
+        if (klipper_service_ != name) {
+            klipper_service_ = name;
+            mark_changed();
+        }
+    });
+}
+
+std::string MoonrakerSession::klipper_service_from(const Json& result) {
+    // result.value is the stored service info, e.g. {"unit_name": "klipper-2.service", ...}.
+    // Anything else leaves the service unknown.
+    if (!result.is_object()) {
+        return {};
+    }
+    const auto info = result.find("value");
+    if (info == result.end() || !info->is_object()) {
+        return {};
+    }
+    const auto unit = info->find("unit_name");
+    if (unit == info->end() || !unit->is_string()) {
+        return {};
+    }
+    // Moonraker restarts services by the name without the ".service" suffix. Other dots belong
+    // to the name (klipper.2.service is klipper.2).
+    auto name = unit->get<std::string>();
+    static const std::string suffix = ".service";
+    if (name.size() >= suffix.size() && name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0) {
+        name.erase(name.size() - suffix.size());
+    }
+    return name;
 }
 
 void MoonrakerSession::query_server_info() {
@@ -313,6 +389,12 @@ void MoonrakerSession::on_notification(const std::string& method, const Json& pa
         if (params.is_array() && !params.empty() && apply_status(printer_, params[0])) {
             mark_changed();
         }
+        // Status updates come from Klippy, so it is alive again. They settle only the restarts that
+        // already went unanswered, not the ones still waiting: the update may have been queued
+        // before those were sent.
+        if (restart_unanswered()) {
+            settle_restarts_through(unanswered_through_);
+        }
         return;
     }
 
@@ -386,11 +468,78 @@ void MoonrakerSession::emergency_stop(ResultHandler handler) {
 }
 
 void MoonrakerSession::restart(ResultHandler handler) {
-    call("printer.restart", Json(), std::move(handler));
+    call("printer.restart", Json(), watch_klippy_restart(std::move(handler)));
 }
 
 void MoonrakerSession::firmware_restart(ResultHandler handler) {
-    call("printer.firmware_restart", Json(), std::move(handler));
+    call("printer.firmware_restart", Json(), watch_klippy_restart(std::move(handler)));
+}
+
+void MoonrakerSession::restart_klipper_service(ResultHandler handler) {
+    // Only a successful restart clears the unresponsive state: after a rejected or unanswered
+    // request Klippy is still hung, and the user must be able to try again.
+    if (klipper_service_.empty()) {
+        if (handler) {
+            RpcResponse response;
+            response.error.message = "Klipper service name unknown";
+            handler(response);
+        }
+        return;
+    }
+    const auto epoch = connection_epoch_;
+    call("machine.services.restart", {{"service", klipper_service_}},
+         [this, epoch, handler = std::move(handler)](const RpcResponse& response) {
+             if (epoch == connection_epoch_ && response.ok) {
+                 // Give the new Klippy process the full stuck timeout before calling it unresponsive again.
+                 clear_klippy_restart_unanswered();
+                 waiting_since_ = now_;
+                 mark_changed();
+             }
+             if (handler) {
+                 handler(response);
+             }
+         });
+}
+
+bool MoonrakerSession::klippy_unresponsive() const {
+    switch (state_) {
+        case SessionState::WaitingKlippy:
+            return restart_unanswered() || now_ - waiting_since_ >= options_.klippy_stuck_timeout;
+        case SessionState::KlippyError:
+        case SessionState::Ready:
+            // A Klippy that hangs while ready may never send a disconnect / shutdown notification,
+            // so an unanswered restart is the only sign of it.
+            return restart_unanswered();
+        default:
+            return false;
+    }
+}
+
+MoonrakerSession::ResultHandler MoonrakerSession::watch_klippy_restart(ResultHandler handler) {
+    // Moonraker forwards these to Klippy; no answer means Klippy (not Moonraker) is stuck,
+    // since a dead link is caught by the liveness check instead.
+    // Requests are numbered so that a timeout arriving after Klippy has shown it is alive
+    // (a later answer, Ready, or a service restart) is recognised as stale.
+    const auto epoch = connection_epoch_;
+    const auto seq = ++restart_seq_;
+    return [this, epoch, seq, handler = std::move(handler)](const RpcResponse& response) {
+        if (epoch == connection_epoch_) {
+            if (response.ok) {
+                // Klippy answered this one: it and earlier requests are settled, later ones are not.
+                settle_restarts_through(seq);
+            }
+            else if (is_no_response(response) && seq > restarts_settled_through_ && seq > unanswered_through_) {
+                const bool was_unanswered = restart_unanswered();
+                unanswered_through_ = seq;
+                if (!was_unanswered) {
+                    mark_changed();
+                }
+            }
+        }
+        if (handler) {
+            handler(response);
+        }
+    };
 }
 
 void MoonrakerSession::call(const std::string& method,
@@ -402,7 +551,28 @@ void MoonrakerSession::call(const std::string& method,
 
 void MoonrakerSession::set_state(SessionState state) {
     if (state_ != state) {
+        if (state == SessionState::WaitingKlippy) {
+            waiting_since_ = now_;
+        }
+        // Reaching Ready (or losing Moonraker) means the unanswered restart no longer applies;
+        // a stuck Klippy moving between waiting and error keeps it.
+        if (state != SessionState::WaitingKlippy && state != SessionState::KlippyError) {
+            clear_klippy_restart_unanswered();
+        }
         state_ = state;
+        mark_changed();
+    }
+}
+
+void MoonrakerSession::clear_klippy_restart_unanswered() {
+    // Also invalidates the restarts still waiting for an answer: Klippy has come back since they were sent.
+    settle_restarts_through(restart_seq_);
+}
+
+void MoonrakerSession::settle_restarts_through(uint32_t seq) {
+    const bool was_unanswered = restart_unanswered();
+    restarts_settled_through_ = std::max(restarts_settled_through_, seq);
+    if (was_unanswered != restart_unanswered()) {
         mark_changed();
     }
 }
