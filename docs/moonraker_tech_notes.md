@@ -147,7 +147,7 @@
 - 通信方式: **両方実装して切替**。`MoonrakerTransport` インターフェースを用意し、
   - 実機: `UnixSocketTransport`(`~/printer_data/comms/moonraker.sock`、ETX区切り、認証不要)
   - シミュレーター: `WebSocketTransport`(`ws://<ip>:7125/websocket`、IXWebSocket)
-  - 設定ファイル(`[moonraker] transport=unix|websocket`, `socket_path=`, `url=`)で切替。上位の JSON-RPC クライアントは共通
+  - 設定ファイル(`[moonraker] transport=unix|websocket`, `socket_path=`, `host=`, `port=`)で切替。上位の JSON-RPC クライアントは共通
 - 第1段階の範囲: **通信層 + 状態表示画面**。温度・押出/引戻し・ファイル・印刷制御の画面は第2段階
 
 ## 参考

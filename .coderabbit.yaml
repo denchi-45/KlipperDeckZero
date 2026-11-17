@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ja-JP
+reviews:
+  # Approve the PR once all CodeRabbit comments are resolved
+  request_changes_workflow: true
+  auto_review:
+    enabled: true
+    # Also review stacked PRs targeting dev or feature branches
+    base_branches:
+      - "dev"
+      - "feature/.*"
