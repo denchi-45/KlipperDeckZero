@@ -51,7 +51,8 @@ def line(a, b, w, fill):
 
 
 # Enclosure: small radius on top, large at the bottom.
-rrect((0, 0, 100, 100), 14, BODY, corners=(False, False, True, True))
+# The lower part starts below the top radius: its square top corners would cover the rounding.
+rrect((0, 3.5, 100, 100), 14, BODY, corners=(False, False, True, True))
 rrect((0, 0, 100, 30), 3.5, BODY, corners=(True, True, False, False))
 # Top band with a lighter lower edge.
 rrect((0, 0, 100, 12), 3.5, TOP_BAND, corners=(True, True, False, False))
