@@ -1,6 +1,7 @@
 {
   "app_name": "KlipperDeckZero",
   "package_name": "klipper-deck-zero",
+  "bin_name": "klipper-deck-zero",
   "version": "0.1.0",
   "description": "Klipper / Moonraker printer control panel for CardputerZero",
 
