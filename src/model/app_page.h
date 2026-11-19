@@ -17,6 +17,7 @@ enum class AppPage {
     Control     = 4,
     Move        = 5,
     Settings    = 6, // also on the S key
+    Camera      = 7,
 };
 
 const char* page_title(AppPage page);

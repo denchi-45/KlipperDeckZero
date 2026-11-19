@@ -25,6 +25,8 @@ const char* page_title(AppPage page) {
             return "Move";
         case AppPage::Settings:
             return "Connection";
+        case AppPage::Camera:
+            return "Camera";
     }
     return "";
 }

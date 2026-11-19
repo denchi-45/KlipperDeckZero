@@ -46,6 +46,8 @@ const char* page_icon(model::AppPage page) {
             return ICON_ARROWS_OUT_CARDINAL;
         case model::AppPage::Settings:
             return ICON_PLUGS;
+        case model::AppPage::Camera:
+            return ICON_WEBCAM;
     }
     return "";
 }

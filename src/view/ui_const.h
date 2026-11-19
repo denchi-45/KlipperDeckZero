@@ -48,6 +48,7 @@ constexpr const char* ICON_HOURGLASS          = "\uE2B8";
 constexpr const char* ICON_STACK              = "\uE466";
 constexpr const char* ICON_PLUGS              = "\uEB56";
 constexpr const char* ICON_WARNING            = "\uE4E0";
+constexpr const char* ICON_WEBCAM             = "\uE9B2";
 
 namespace color {
 

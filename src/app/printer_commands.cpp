@@ -46,6 +46,14 @@ void PrinterCommands::set_thumbnail_source(ThumbnailSource* thumbnails) {
     thumbnails_ = thumbnails;
 }
 
+void PrinterCommands::set_webcam_source(WebcamSource* webcams) {
+    webcams_ = webcams;
+}
+
+WebcamSource* PrinterCommands::webcams() const {
+    return webcams_;
+}
+
 const model::PrinterState* PrinterCommands::printer() const {
     if (!session_ || session_->session_state() != moonraker::SessionState::Ready) {
         return nullptr;

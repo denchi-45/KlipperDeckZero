@@ -31,6 +31,7 @@ class BaseViewModel;
 namespace app {
 
 class ThumbnailSource;
+class WebcamSource;
 
 // Printer operations started from the pages. Reports the outcome of each one with a toast.
 class PrinterCommands {
@@ -51,6 +52,9 @@ public:
     void set_session(moonraker::MoonrakerSession* session);
     // Where thumbnails come from; nullptr while the session is being replaced.
     void set_thumbnail_source(ThumbnailSource* thumbnails);
+    // The printer's webcams; nullptr while the session is being replaced.
+    void set_webcam_source(WebcamSource* webcams);
+    WebcamSource* webcams() const;
     // Live printer state, or nullptr unless the session is ready.
     const model::PrinterState* printer() const;
     // Called after the session state changed; a Klipper restart drops a pending G-code state restore.
@@ -105,6 +109,7 @@ private:
     viewmodel::BaseViewModel& view_model_;
     moonraker::MoonrakerSession* session_{nullptr};
     ThumbnailSource* thumbnails_{nullptr};
+    WebcamSource* webcams_{nullptr};
     GcodeStateGuard gcode_state_;
 };
 

@@ -34,7 +34,7 @@ TEST_CASE("nav layers: slots map to pages by layer and position") {
 
     CHECK_EQ(*model::nav_slot_page(1, 0), AppPage::Move);
     CHECK_EQ(*model::nav_slot_page(1, 1), AppPage::Settings);
-    CHECK(!model::nav_slot_page(1, 2));
+    CHECK_EQ(*model::nav_slot_page(1, 2), AppPage::Camera);
     CHECK(!model::nav_slot_page(1, 3));
     CHECK(!model::nav_slot_page(1, 4));
 }
@@ -46,7 +46,8 @@ TEST_CASE("nav layers: out-of-range slots and layers are empty") {
 
 TEST_CASE("nav layers: every page has exactly one slot") {
     const AppPage pages[] = {AppPage::Status, AppPage::Temperature, AppPage::Extruder, AppPage::Files,
-                             AppPage::Control, AppPage::Move, AppPage::Settings};
+                             AppPage::Control, AppPage::Move, AppPage::Settings,
+                             AppPage::Camera};
     for (const auto page : pages) {
         std::size_t layer = 99;
         std::size_t slot = 99;
@@ -83,14 +84,14 @@ TEST_CASE("nav layers: a slot shows its page in the current layer") {
 TEST_CASE("nav layers: empty slots change nothing") {
     NavLayers nav;
     nav.next_layer();
-    CHECK(nav.select_slot(1));
-    for (std::size_t slot = 2; slot < model::kNavSlotCount; ++slot) {
+    CHECK(nav.select_slot(2));
+    for (std::size_t slot = 3; slot < model::kNavSlotCount; ++slot) {
         CHECK(!nav.select_slot(slot));
-        CHECK_EQ(nav.page(), AppPage::Settings);
+        CHECK_EQ(nav.page(), AppPage::Camera);
         CHECK_EQ(nav.layer(), std::size_t{1});
     }
     CHECK(!nav.select_slot(model::kNavSlotCount));
-    CHECK_EQ(nav.page(), AppPage::Settings);
+    CHECK_EQ(nav.page(), AppPage::Camera);
 }
 
 TEST_CASE("nav layers: next and previous wrap around") {

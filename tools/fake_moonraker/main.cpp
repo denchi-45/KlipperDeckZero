@@ -8,8 +8,11 @@
  * checks, printing progress, emergency stop and firmware restart.
  *
  * Usage: fake_moonraker [--host 127.0.0.1] [--port 7125] [--speed 20] [--print <file>]
+ *                       [--webcam <snapshot url>]...
  *   --speed  print time multiplier (simulated seconds per real second)
  *   --print  start printing one of the fake files immediately (e.g. 3DBenchy_PLA_0.2mm.gcode)
+ *   --webcam list a webcam with this snapshot URL in server.webcams.list (repeatable); the
+ *            images themselves come from any HTTP server, e.g. `python -m http.server`
  */
 
 #include <ixwebsocket/IXNetSystem.h>
@@ -30,6 +33,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <thread>
 #include <vector>
 
@@ -64,7 +68,7 @@ const std::vector<FakeFile> kFiles = {
 
 class Printer {
 public:
-    explicit Printer(double speed) : speed_(speed) {
+    Printer(double speed, std::vector<std::string> webcams) : speed_(speed), webcams_(std::move(webcams)) {
         reset_objects();
     }
 
@@ -151,6 +155,21 @@ public:
         if (method == "printer.firmware_restart" || method == "printer.restart") {
             firmware_restart();
             return result("ok");
+        }
+        if (method == "server.webcams.list") {
+            json list = json::array();
+            for (std::size_t i = 0; i < webcams_.size(); ++i) {
+                list.push_back({{"name", i == 0 ? std::string("front") : "cam" + std::to_string(i + 1)},
+                                {"enabled", true},
+                                {"service", "mjpegstreamer-adaptive"},
+                                {"target_fps", 15},
+                                {"stream_url", "/webcam/?action=stream"},
+                                {"snapshot_url", webcams_[i]},
+                                {"flip_horizontal", false},
+                                {"flip_vertical", false},
+                                {"rotation", 0}});
+            }
+            return result({{"webcams", list}});
         }
         if (method == "server.files.list") {
             json files = json::array();
@@ -540,6 +559,7 @@ private:
 
     std::mutex mutex_;
     double speed_;
+    std::vector<std::string> webcams_;
     json objects_;
     json last_sent_ = json::object();
     std::string klippy_state_{"ready"};
@@ -560,9 +580,10 @@ int main(int argc, char** argv) {
     int port = 7125;
     double speed = 20.0;
     std::string autostart;
+    std::vector<std::string> webcams;
     for (int i = 1; i < argc; i += 2) {
         const std::string flag = argv[i];
-        if (flag != "--host" && flag != "--port" && flag != "--speed" && flag != "--print") {
+        if (flag != "--host" && flag != "--port" && flag != "--speed" && flag != "--print" && flag != "--webcam") {
             std::fprintf(stderr, "unknown option: %s\n", flag.c_str());
             return 2;
         }
@@ -582,6 +603,9 @@ int main(int argc, char** argv) {
         else if (flag == "--print") {
             autostart = argv[i + 1];
         }
+        else if (flag == "--webcam") {
+            webcams.emplace_back(argv[i + 1]);
+        }
     }
 
     // Show request logs immediately even when stdout is redirected.
@@ -590,7 +614,7 @@ int main(int argc, char** argv) {
     std::signal(SIGTERM, on_signal);
     ix::initNetSystem();
 
-    Printer printer(speed);
+    Printer printer(speed, std::move(webcams));
     if (!autostart.empty()) {
         const auto started = printer.start_print(autostart);
         if (started.contains("error")) {

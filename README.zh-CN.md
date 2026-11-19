@@ -21,6 +21,7 @@
 - 暂停 / 继续、取消、紧急停止
 - 移动各轴（点动）、归零、关闭电机
 - 重启 Klipper 或 MCU
+- 查看打印机的摄像头画面（Moonraker 中设置的摄像头）
 
 ## 准备
 
@@ -97,15 +98,16 @@ sudo apt install ./klipper-deck-zero_0.1.0-rev1_arm64.deb
 | 1 | `8` | 打印控制 | 暂停 / 继续、取消、紧急停止 |
 | 2 | `4` | 移动 | 点动、归零、关闭电机 |
 | 2 | `5` | 连接设置（也可按 `S`） | 连接目标（本机的 Klipper 或网络上的打印机） |
-| 2 | `6` 到 `8` | （空） | 留给以后的界面 |
+| 2 | `6` | 摄像头 | 打印机的摄像头画面 |
+| 2 | `7` 到 `8` | （空） | 留给以后的界面 |
 
 层和界面互不影响。切换层只会改变导航栏（哪个键打开哪个界面），当前界面保持不变。只有按 `4` 到 `8`、`S` 或 `ESC` 时界面才会切换，而且这时也不会切换层。
 
 | 显示第 1 层 | 按 `Sym`+`J` 显示第 2 层 |
 |---|---|
-| <img src="docs/images/screen-status-ready.png" width="640" alt="状态界面，显示第 1 层。导航栏为状态、温度、挤出、文件、打印控制，状态图标为绿色，右端为 1/2"> | <img src="docs/images/screen-status-layer2.png" width="640" alt="同一个状态界面，显示第 2 层。导航栏变为移动、连接设置和 3 个空槽位，没有绿色图标，右端为 2/2"> |
+| <img src="docs/images/screen-status-ready.png" width="640" alt="状态界面，显示第 1 层。导航栏为状态、温度、挤出、文件、打印控制，状态图标为绿色，右端为 1/2"> | <img src="docs/images/screen-status-layer2.png" width="640" alt="同一个状态界面，显示第 2 层。导航栏变为移动、连接设置、摄像头和 2 个空槽位，没有绿色图标，右端为 2/2"> |
 
-在右图的状态下，按 `4` 打开移动界面，按 `5` 打开连接设置。
+在右图的状态下，按 `4` 打开移动界面，按 `5` 打开连接设置，按 `6` 打开摄像头界面。
 
 ### 通用按键
 
@@ -200,6 +202,15 @@ sudo apt install ./klipper-deck-zero_0.1.0-rev1_arm64.deb
 
 `↑`/`↓` 选择项目，`Enter` 编辑或确认，`←`/`→` 切换选项，`ESC` 取消编辑或返回。连接目标可以选择 “This device”（Unix 套接字）或 “Network”（WebSocket，填写 Host / Port；未加入 `trusted_clients` 时才需要 API key），选择 “Save & connect” 保存并重新连接。最下一行始终显示状态标签，旁边通常显示连接状态，有保存结果或输入错误时显示相应消息。
 
+#### 摄像头（第 2 层的 `6`）
+
+<img src="docs/images/screen-camera.png" width="640" alt="摄像头界面。标题栏和导航栏之间是摄像头画面，左下角为摄像头名称、1/4 和帧率。导航栏为第 2 层（2/2），摄像头图标为绿色">
+
+显示打印机的摄像头画面。摄像头是 Moonraker 中设置的那些，与 Mainsail 和 Fluidd 使用的列表相同（crowsnest，或 `moonraker.conf` 中的 `[webcam]`）。应用反复获取摄像头的静态图片（snapshot URL），每秒最多 4 次，并且只在打开此界面时获取。`←`/`→` 切换摄像头，`Enter` 暂停 / 继续画面。左下角显示摄像头名称、在列表中的序号和帧率。Moonraker 中为摄像头设置的旋转和翻转也会生效。
+
+- 像 `/webcam/?action=snapshot` 这样相对于 Web 前端的 URL，从打印机主机的 80 端口获取（通过 Unix 套接字连接时为本机）。
+- 没有 snapshot URL 的摄像头（例如仅 WebRTC）和 `https` URL 无法显示，界面上会提示。
+
 ## 配置文件
 
 在连接设置界面保存的内容会写入用户配置文件。也可以直接编辑。
@@ -241,7 +252,8 @@ sudo apt purge klipper-deck-zero    # 同时删除 /etc 中的配置文件
 
 1. ✅ Moonraker 通信层 + 状态界面
 2. ✅ 温度、挤出 / 回抽、文件、打印控制、移动界面
-3. 切换界面语言（英文、日文、中文）
+3. ✅ 摄像头界面
+4. 切换界面语言（英文、日文、中文）
 
 ## 开发
 
@@ -276,6 +288,8 @@ REMOTE_USER=pi REMOTE_HOST=192.168.1.20 ./deploy.sh
 ./build/mingw64/Debug/fake_moonraker.exe --speed 20   # ws://127.0.0.1:7125/websocket
 ./build/mingw64/Debug/klipper-deck-zero.exe
 ```
+
+加上 `--webcam <snapshot URL>`（可指定多次），摄像头界面就会列出摄像头；图片从该 URL 的 HTTP 服务器获取。
 
 要连接真实的打印机，请把 `config/klipper-deck-zero.conf` 中的 `host` 改为打印机的 IP。
 

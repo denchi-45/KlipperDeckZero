@@ -34,6 +34,7 @@ PrinterService::PrinterService(const MoonrakerConfig& config) {
     session_ = std::make_unique<moonraker::MoonrakerSession>(create_transport(config), std::move(options));
     session_->set_change_listener([this] { on_session_changed(); });
     thumbnails_ = create_thumbnail_source(config, *session_);
+    webcams_ = std::make_unique<WebcamSource>(config, *session_);
 }
 
 PrinterService::~PrinterService() {
@@ -65,6 +66,10 @@ ThumbnailSource& PrinterService::thumbnails() {
     return *thumbnails_;
 }
 
+WebcamSource& PrinterService::webcams() {
+    return *webcams_;
+}
+
 void PrinterService::set_change_listener(ChangeListener listener) {
     change_listener_ = std::move(listener);
 }
@@ -74,6 +79,7 @@ void PrinterService::poll_timer_cb(lv_timer_t* timer) {
     if (service) {
         service->session_->poll();
         service->thumbnails_->poll();
+        service->webcams_->poll();
     }
 }
 

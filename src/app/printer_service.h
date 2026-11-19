@@ -7,6 +7,7 @@
 #include "application_config.h"
 #include "moonraker_session.h"
 #include "thumbnail_source.h"
+#include "webcam_source.h"
 
 #include "lvgl.h"
 
@@ -32,6 +33,7 @@ public:
 
     moonraker::MoonrakerSession& session();
     ThumbnailSource& thumbnails();
+    WebcamSource& webcams();
     void set_change_listener(ChangeListener listener);
 
 private:
@@ -41,6 +43,8 @@ private:
     std::unique_ptr<moonraker::MoonrakerSession> session_;
     // Uses the session, so it is destroyed first.
     std::unique_ptr<ThumbnailSource> thumbnails_;
+    // Uses the session too.
+    std::unique_ptr<WebcamSource> webcams_;
     lv_timer_t* poll_timer_{nullptr};
     ChangeListener change_listener_;
     moonraker::SessionState logged_state_{moonraker::SessionState::Stopped};
