@@ -154,6 +154,8 @@ void CameraScreen::tick() {
             break;
         case Phase::Listing:
             if (reached(now, request_started_ + kStaleRequestMs)) {
+                // A late answer must not pass for the next request's.
+                ++generation_;
                 phase_ = Phase::NeedList;
                 retry_at_ = now;
             }
@@ -287,7 +289,10 @@ void CameraScreen::on_image(std::uint32_t generation, std::string jpeg, const st
     const int fps = webcam.target_fps > 0 ? std::min(webcam.target_fps, kMaxFps) : kMaxFps;
     const uint32_t interval = 1000u / static_cast<uint32_t>(fps);
     // Keep the pace from the request's start, but leave the LVGL thread some breathing room.
-    next_image_at_ = std::max(request_started_ + interval, now + kTickMs);
+    // Ticks wrap around, so they are compared with reached() rather than std::max.
+    const uint32_t paced = request_started_ + interval;
+    const uint32_t earliest = now + kTickMs;
+    next_image_at_ = reached(earliest, paced) ? earliest : paced;
 
     ++frames_;
     const uint32_t span = now - frames_since_;

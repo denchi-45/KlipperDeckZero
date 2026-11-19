@@ -27,9 +27,15 @@ struct HttpUrl {
 bool parse_http_url(const std::string& url, HttpUrl& parsed, std::string& error);
 // The status code of a status line such as "HTTP/1.0 200 OK", or -1.
 int parse_http_status(const std::string& line);
-// location resolved against the URL it came from: absolute http URLs as they are, paths on the
-// same server. Empty when it cannot be followed.
+// A redirect's Location resolved against the URL it came from (RFC 3986 reference resolution):
+// absolute URLs as they are, "//host/..." with http, and paths, relative paths and queries on the
+// same server. Empty when there is nothing to follow.
 std::string resolve_http_location(const HttpUrl& from, const std::string& location);
+// The size on a chunk-size line of a chunked body ("1a2b", "1a2b;name=value"); false when the
+// line is malformed.
+bool parse_chunk_size(const std::string& line, std::uint64_t& size);
+// A Content-Length value; false unless it is a plain decimal number.
+bool parse_content_length(const std::string& value, std::uint64_t& length);
 
 // Plain HTTP GETs on a background thread, one at a time, for servers IXWebSocket's client cannot
 // read: it only takes HTTP/1.1 status lines and bodies with a length, while e.g. mjpg-streamer

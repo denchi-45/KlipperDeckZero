@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <memory>
 #include <utility>
+#include <vector>
 
 namespace moonraker {
 namespace {
@@ -38,6 +39,42 @@ std::string trim(const std::string& text) {
     }
     const auto end = text.find_last_not_of(" \t\r\n");
     return text.substr(begin, end - begin + 1);
+}
+
+// RFC 3986 section 5.2.4 for a path starting with '/': drops "." segments, resolves "..".
+std::string remove_dot_segments(const std::string& path) {
+    std::vector<std::string> segments;
+    std::size_t start = 1;
+    while (true) {
+        const auto slash = path.find('/', start);
+        const bool last = slash == std::string::npos;
+        const std::string segment = path.substr(start, last ? std::string::npos : slash - start);
+        if (segment == "..") {
+            if (!segments.empty()) {
+                segments.pop_back();
+            }
+            if (last) {
+                segments.emplace_back();
+            }
+        }
+        else if (segment == ".") {
+            if (last) {
+                segments.emplace_back();
+            }
+        }
+        else {
+            segments.push_back(segment);
+        }
+        if (last) {
+            break;
+        }
+        start = slash + 1;
+    }
+    std::string result;
+    for (const auto& segment : segments) {
+        result += "/" + segment;
+    }
+    return result.empty() ? "/" : result;
 }
 
 std::string host_header(const HttpUrl& url) {
@@ -89,8 +126,11 @@ bool read_chunked(ix::Socket& socket, const ix::CancellationRequest& cancelled, 
             error = "cannot read the response";
             return false;
         }
-        char* end = nullptr;
-        const unsigned long long size = std::strtoull(trim(size_line.second).c_str(), &end, 16);
+        std::uint64_t size = 0;
+        if (!parse_chunk_size(size_line.second, size)) {
+            error = "malformed chunked response";
+            return false;
+        }
         if (size > max_bytes || body.size() + size > max_bytes) {
             error = "response too large";
             return false;
@@ -105,8 +145,13 @@ bool read_chunked(ix::Socket& socket, const ix::CancellationRequest& cancelled, 
         }
         body += chunk.second;
         // The CRLF after the chunk.
-        if (!socket.readLine(cancelled).first) {
+        const auto end_line = socket.readLine(cancelled);
+        if (!end_line.first) {
             error = "cannot read the response";
+            return false;
+        }
+        if (!trim(end_line.second).empty()) {
+            error = "malformed chunked response";
             return false;
         }
     }
@@ -201,17 +246,78 @@ int parse_http_status(const std::string& line) {
 }
 
 std::string resolve_http_location(const HttpUrl& from, const std::string& location) {
-    const std::string target = trim(location);
+    std::string target = trim(location);
+    if (const auto fragment = target.find('#'); fragment != std::string::npos) {
+        target.erase(fragment);
+    }
     if (target.empty()) {
         return {};
     }
-    if (lower(target.substr(0, 7)) == "http://" || lower(target.substr(0, 8)) == "https://") {
+    // An absolute URL: "scheme:" before any '/' or '?'.
+    const auto colon = target.find(':');
+    if (colon != std::string::npos && colon < target.find_first_of("/?")) {
         return target;
     }
-    if (target[0] != '/' || (target.size() > 1 && target[1] == '/')) {
-        return {};
+    if (target.rfind("//", 0) == 0) {
+        return "http:" + target;
     }
-    return "http://" + host_header(from) + target;
+
+    const std::string origin = "http://" + host_header(from);
+    const std::string base = from.target.substr(0, from.target.find('?'));
+    if (target[0] == '?') {
+        return origin + base + target;
+    }
+    std::string query;
+    if (const auto query_start = target.find('?'); query_start != std::string::npos) {
+        query = target.substr(query_start);
+        target.erase(query_start);
+    }
+    std::string path;
+    if (target[0] == '/') {
+        path = target;
+    }
+    else {
+        // Relative to the directory of the base path.
+        const auto slash = base.rfind('/');
+        path = (slash == std::string::npos ? std::string("/") : base.substr(0, slash + 1)) + target;
+    }
+    return origin + remove_dot_segments(path) + query;
+}
+
+bool parse_chunk_size(const std::string& line, std::uint64_t& size) {
+    const std::string text = trim(line);
+    std::size_t i = 0;
+    std::uint64_t value = 0;
+    while (i < text.size() && std::isxdigit(static_cast<unsigned char>(text[i]))) {
+        if (i >= 15) {
+            return false; // far beyond any size the fetcher accepts
+        }
+        const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(text[i])));
+        value = value * 16 + static_cast<std::uint64_t>(c <= '9' ? c - '0' : c - 'a' + 10);
+        ++i;
+    }
+    if (i == 0) {
+        return false;
+    }
+    // Only a chunk extension may follow ("; name=value"), after optional whitespace.
+    while (i < text.size() && (text[i] == ' ' || text[i] == '\t')) {
+        ++i;
+    }
+    if (i < text.size() && text[i] != ';') {
+        return false;
+    }
+    size = value;
+    return true;
+}
+
+bool parse_content_length(const std::string& value, std::uint64_t& length) {
+    const std::string text = trim(value);
+    if (text.empty() || text.size() > 15 ||
+        !std::all_of(text.begin(), text.end(), [](unsigned char c) { return std::isdigit(c); })) {
+        return false;
+    }
+    length = std::strtoull(text.c_str(), nullptr, 10);
+    return true;
 }
 
 HttpFetcher::HttpFetcher(std::size_t max_body_bytes) : max_body_bytes_(max_body_bytes) {
@@ -347,8 +453,11 @@ void HttpFetcher::fetch(const std::string& start_url, std::string& body, std::st
             return;
         }
         if (headers.count("content-length")) {
-            char* end = nullptr;
-            const unsigned long long length = std::strtoull(headers["content-length"].c_str(), &end, 10);
+            std::uint64_t length = 0;
+            if (!parse_content_length(headers["content-length"], length)) {
+                error = "malformed Content-Length";
+                return;
+            }
             if (length > max_body_bytes_) {
                 error = "response too large";
                 return;

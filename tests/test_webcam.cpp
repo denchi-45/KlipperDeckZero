@@ -251,12 +251,41 @@ TEST_CASE("webcam: HTTP/1.0 and 1.1 status lines are read") {
     CHECK_EQ(moonraker::parse_http_status("HTTP/1.1 20x OK"), -1);
 }
 
-TEST_CASE("webcam: redirects are followed on the same server or to http URLs") {
+TEST_CASE("webcam: redirect locations are resolved against the URL they came from") {
     moonraker::HttpUrl from;
     from.host = "printer.local";
     from.port = 8080;
-    CHECK_EQ(moonraker::resolve_http_location(from, "/snapshot.jpg"), std::string("http://printer.local:8080/snapshot.jpg"));
-    CHECK_EQ(moonraker::resolve_http_location(from, "http://cam/a.jpg"), std::string("http://cam/a.jpg"));
-    CHECK(moonraker::resolve_http_location(from, "relative.jpg").empty());
-    CHECK(moonraker::resolve_http_location(from, "").empty());
+    from.target = "/webcam/dir/page?action=snapshot";
+    const auto resolve = [&from](const char* location) { return moonraker::resolve_http_location(from, location); };
+    CHECK_EQ(resolve("/snapshot.jpg"), std::string("http://printer.local:8080/snapshot.jpg"));
+    CHECK_EQ(resolve("http://cam/a.jpg"), std::string("http://cam/a.jpg"));
+    CHECK_EQ(resolve("https://cam/a.jpg"), std::string("https://cam/a.jpg"));
+    CHECK_EQ(resolve("//camera.local/snapshot"), std::string("http://camera.local/snapshot"));
+    CHECK_EQ(resolve("snapshot.jpg"), std::string("http://printer.local:8080/webcam/dir/snapshot.jpg"));
+    CHECK_EQ(resolve("?action=snapshot&n=2"), std::string("http://printer.local:8080/webcam/dir/page?action=snapshot&n=2"));
+    CHECK_EQ(resolve("../snap.jpg?x=1"), std::string("http://printer.local:8080/webcam/snap.jpg?x=1"));
+    CHECK_EQ(resolve("./a/../b.jpg"), std::string("http://printer.local:8080/webcam/dir/b.jpg"));
+    CHECK_EQ(resolve("../../../../top.jpg"), std::string("http://printer.local:8080/top.jpg"));
+    CHECK(resolve("").empty());
+    CHECK(resolve("#only-a-fragment").empty());
+}
+
+TEST_CASE("webcam: chunk sizes and Content-Length must be well formed") {
+    std::uint64_t value = 99;
+    CHECK(moonraker::parse_chunk_size("1a2B\r\n", value));
+    CHECK_EQ(value, std::uint64_t{0x1a2b});
+    CHECK(moonraker::parse_chunk_size("10;name=value\r\n", value));
+    CHECK_EQ(value, std::uint64_t{16});
+    CHECK(moonraker::parse_chunk_size("0 ;x\r\n", value));
+    CHECK_EQ(value, std::uint64_t{0});
+    CHECK(!moonraker::parse_chunk_size("\r\n", value));
+    CHECK(!moonraker::parse_chunk_size("zz\r\n", value));
+    CHECK(!moonraker::parse_chunk_size("12 34\r\n", value));
+    CHECK(!moonraker::parse_chunk_size("ffffffffffffffffff\r\n", value));
+
+    CHECK(moonraker::parse_content_length(" 16260 ", value));
+    CHECK_EQ(value, std::uint64_t{16260});
+    CHECK(!moonraker::parse_content_length("", value));
+    CHECK(!moonraker::parse_content_length("-1", value));
+    CHECK(!moonraker::parse_content_length("12abc", value));
 }
