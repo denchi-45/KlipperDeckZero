@@ -36,6 +36,7 @@ add_executable(kdz_tests
     test_thumbnail_source.cpp
     test_status_thumbnail.cpp
     test_nav_layers.cpp
+    test_webcam.cpp
     "${KDZ_SOURCE_DIR}/src/app/application_config.cpp"
     "${KDZ_SOURCE_DIR}/src/app/control_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/extruder_panel.cpp"
@@ -51,6 +52,8 @@ add_executable(kdz_tests
     "${KDZ_SOURCE_DIR}/src/app/status_thumbnail.cpp"
     "${KDZ_SOURCE_DIR}/src/app/temperature_panel.cpp"
     "${KDZ_SOURCE_DIR}/src/app/thumbnail_source.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/webcam.cpp"
+    "${KDZ_SOURCE_DIR}/src/app/webcam_frame.cpp"
     "${KDZ_SOURCE_DIR}/src/viewmodel/printer_format.cpp"
     "${KDZ_SOURCE_DIR}/src/model/nav_layers.cpp"
 )
@@ -67,6 +70,16 @@ if(NOT TARGET PNG::PNG)
     find_package(PNG REQUIRED)
 endif()
 
-target_link_libraries(kdz_tests PRIVATE kdz_moonraker PNG::PNG)
+# The webcam images are decoded with libjpeg, which the app links for LVGL's decoder too.
+if(TARGET libjpeg-turbo::libjpeg-turbo)
+    set(KDZ_TESTS_JPEG libjpeg-turbo::libjpeg-turbo)
+else()
+    if(NOT TARGET JPEG::JPEG)
+        find_package(JPEG REQUIRED)
+    endif()
+    set(KDZ_TESTS_JPEG JPEG::JPEG)
+endif()
+
+target_link_libraries(kdz_tests PRIVATE kdz_moonraker PNG::PNG ${KDZ_TESTS_JPEG})
 
 add_test(NAME kdz_tests COMMAND kdz_tests)

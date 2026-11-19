@@ -13,7 +13,7 @@ using Slot = std::optional<AppPage>;
 
 const std::array<std::array<Slot, kNavSlotCount>, kNavLayerCount> kLayers = {{
     {AppPage::Status, AppPage::Temperature, AppPage::Extruder, AppPage::Files, AppPage::Control},
-    {AppPage::Move, AppPage::Settings, std::nullopt, std::nullopt, std::nullopt},
+    {AppPage::Move, AppPage::Settings, AppPage::Camera, std::nullopt, std::nullopt},
 }};
 
 } // namespace

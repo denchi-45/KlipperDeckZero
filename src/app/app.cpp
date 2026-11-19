@@ -505,11 +505,13 @@ int Application::run() {
         shortcuts.set_session(nullptr);
         commands.set_session(nullptr);
         commands.set_thumbnail_source(nullptr);
+        commands.set_webcam_source(nullptr);
         printer_service.reset();
         printer_service = std::make_unique<PrinterService>(moonraker);
         shortcuts.set_session(&printer_service->session());
         commands.set_session(&printer_service->session());
         commands.set_thumbnail_source(&printer_service->thumbnails());
+        commands.set_webcam_source(&printer_service->webcams());
         printer_service->set_change_listener([&view_model, &commands](const moonraker::MoonrakerSession& session) {
             commands.on_session_changed();
             view_model.update_printer(session);

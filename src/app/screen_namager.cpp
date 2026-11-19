@@ -14,6 +14,7 @@
 #include "placeholder_screen.h"
 #include "settings_screen.h"
 #include "status_screen.h"
+#include "camera_screen.h"
 #include "temperature_screen.h"
 
 namespace app {
@@ -84,6 +85,9 @@ void ScreenManager::show_screen(model::AppPage page) {
     }
     else if (page == model::AppPage::Settings) {
         load_screen(std::make_unique<screen::SettingsScreen>(view_model_, assets_, settings_));
+    }
+    else if (page == model::AppPage::Camera) {
+        load_screen(std::make_unique<screen::CameraScreen>(view_model_, assets_, commands_));
     }
     else {
         load_screen(std::make_unique<screen::PlaceholderScreen>(view_model_, assets_, page));

@@ -21,6 +21,7 @@ An LVGL app for the M5Stack **CardputerZero** that lets you run a Klipper 3D pri
 - Pause / resume, cancel, emergency stop
 - Jog the axes, home, and turn the motors off
 - Restart Klipper or the MCU
+- Watch the printer's webcam (the webcams set up in Moonraker)
 
 ## Requirements
 
@@ -97,15 +98,16 @@ Every screen uses the same frame.
 | 1 | `8` | Print control | Pause / resume, cancel, emergency stop |
 | 2 | `4` | Move | Jog, home, motors off |
 | 2 | `5` | Connection settings (also `S`) | Where to connect (Klipper on this device or a printer on the network) |
-| 2 | `6` to `8` | (empty) | Reserved for future screens |
+| 2 | `6` | Camera | The printer's webcam |
+| 2 | `7` to `8` | (empty) | Reserved for future screens |
 
 Layers and screens are independent. Switching layers only changes the nav bar (which key opens which screen); the screen you are on stays. The screen changes only when you press `4` to `8`, `S` or `ESC`, and that never switches the layer.
 
 | Layer 1 shown | `Sym`+`J` shows layer 2 |
 |---|---|
-| <img src="docs/images/screen-status-ready.png" width="640" alt="Status with layer 1 shown. The nav bar has Status, Temperature, Extrude, Files and Print control; the Status icon is green and 1/2 is shown at the right"> | <img src="docs/images/screen-status-layer2.png" width="640" alt="The same Status screen with layer 2 shown. The nav bar changes to Move, Connection settings and three empty slots; no icon is green and 2/2 is shown at the right"> |
+| <img src="docs/images/screen-status-ready.png" width="640" alt="Status with layer 1 shown. The nav bar has Status, Temperature, Extrude, Files and Print control; the Status icon is green and 1/2 is shown at the right"> | <img src="docs/images/screen-status-layer2.png" width="640" alt="The same Status screen with layer 2 shown. The nav bar changes to Move, Connection settings, Camera and two empty slots; no icon is green and 2/2 is shown at the right"> |
 
-From the right-hand state, `4` opens Move and `5` opens Connection settings.
+From the right-hand state, `4` opens Move, `5` opens Connection settings and `6` opens Camera.
 
 ### Common keys
 
@@ -200,6 +202,15 @@ When an action is not run (the reason is shown in a toast and on the bottom line
 
 `↑`/`↓` select an item, `Enter` edits or confirms, `←`/`→` change an option, and `ESC` cancels the edit or goes back. You can connect to "This device" (Unix socket) or "Network" (WebSocket: Host and Port, plus an API key only if the CardputerZero is not in `trusted_clients`); "Save & connect" saves the settings and reconnects. The bottom line always shows the state badge, and next to it the connection state, or the save result or input error while there is one.
 
+#### Camera (layer 2, `6`)
+
+<img src="docs/images/screen-camera.png" width="640" alt="Camera screen. The webcam image fills the area between the title bar and the nav bar, with the webcam name, 1/4 and the frame rate at the bottom left. The nav bar shows layer 2 (2/2) with the Camera icon green">
+
+Shows the printer's webcam. The webcams are the ones set up in Moonraker, the same list Mainsail and Fluidd use (crowsnest, or `[webcam]` sections in `moonraker.conf`). The app downloads the webcam's still image (its snapshot URL) again and again, up to 4 times a second, and only while this screen is open. `←`/`→` switch between webcams and `Enter` pauses / resumes the image. The bottom left shows the webcam name, its place in the list and the frame rate. Rotation and flips set for the webcam in Moonraker are applied.
+
+- A snapshot URL relative to the web frontend (such as `/webcam/?action=snapshot`) is fetched from port 80 of the printer host, or of this device when it connects through the Unix socket.
+- A webcam without a snapshot URL (for example WebRTC only) and `https` URLs cannot be shown; the screen says so.
+
 ## Configuration file
 
 What you save on the connection settings screen is written to the user configuration file. You can also edit it directly.
@@ -241,7 +252,8 @@ The user settings file (`~/.config/klipper-deck-zero/klipper-deck-zero.conf`) is
 
 1. ✅ Moonraker client + Status screen
 2. ✅ Temperature, extrude / retract, files, print control and move screens
-3. Switching the UI language (English, Japanese, Chinese)
+3. ✅ Camera screen
+4. Switching the UI language (English, Japanese, Chinese)
 
 ## Development
 
@@ -276,6 +288,8 @@ The desktop build includes `fake_moonraker`. It simulates heating, the extrude t
 ./build/mingw64/Debug/fake_moonraker.exe --speed 20   # ws://127.0.0.1:7125/websocket
 ./build/mingw64/Debug/klipper-deck-zero.exe
 ```
+
+Add `--webcam <snapshot URL>` (repeatable) to list webcams on the Camera screen; the images come from any HTTP server you point it at.
 
 To connect to a real printer, change `host` in `config/klipper-deck-zero.conf` to the printer's IP.
 

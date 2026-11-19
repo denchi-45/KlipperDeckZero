@@ -92,6 +92,14 @@ constexpr HelpRow kSettingsRows[] = {
     {"SYM+H / J", "Previous / next nav layer"},
 };
 
+constexpr HelpRow kCameraRows[] = {
+    {"LEFT / RIGHT", "Previous / next camera"},
+    {"ENTER", "Pause / resume the image"},
+    {"ESC", "Back to status"},
+    {"4 - 8", "Nav bar slot 1 - 5"},
+    {"SYM+H / J", "Previous / next nav layer"},
+};
+
 struct HelpRows {
     const HelpRow* rows;
     std::size_t count;
@@ -119,6 +127,8 @@ HelpRows rows_for(model::AppPage page) {
             return rows_of(kMoveRows);
         case model::AppPage::Settings:
             return rows_of(kSettingsRows);
+        case model::AppPage::Camera:
+            return rows_of(kCameraRows);
         default:
             return rows_of(kPageRows);
     }
